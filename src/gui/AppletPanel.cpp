@@ -2096,6 +2096,7 @@ void AppletPanel::setTxDspChainOrder(
             case AudioEngine::TxChainStage::Tube:   return "tube";
             case AudioEngine::TxChainStage::Enh:    return "pudu";
             case AudioEngine::TxChainStage::Reverb: return "reverb";
+            case AudioEngine::TxChainStage::Delay:  return {};  // AetherTX only
             case AudioEngine::TxChainStage::None:   return {};
         }
         return {};

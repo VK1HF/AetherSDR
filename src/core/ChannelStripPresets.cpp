@@ -8,6 +8,7 @@
 #include "ClientGate.h"
 #include "ClientPudu.h"
 #include "ClientReverb.h"
+#include "ClientDelay.h"
 #include "ClientTube.h"
 
 #include <QDateTime>
@@ -40,6 +41,7 @@ QString stageEnumToName(AudioEngine::TxChainStage s)
         case AudioEngine::TxChainStage::Tube:   return "Tube";
         case AudioEngine::TxChainStage::Enh:    return "Enh";
         case AudioEngine::TxChainStage::Reverb: return "Reverb";
+        case AudioEngine::TxChainStage::Delay:  return "Delay";
         case AudioEngine::TxChainStage::None:   return "";
     }
     return "";
@@ -54,6 +56,7 @@ AudioEngine::TxChainStage stageNameToEnum(const QString& n)
     if (n == "Tube")   return AudioEngine::TxChainStage::Tube;
     if (n == "Enh")    return AudioEngine::TxChainStage::Enh;
     if (n == "Reverb") return AudioEngine::TxChainStage::Reverb;
+    if (n == "Delay")  return AudioEngine::TxChainStage::Delay;
     return AudioEngine::TxChainStage::None;
 }
 
@@ -799,6 +802,15 @@ QJsonObject ChannelStripPresets::captureTxJson(AudioEngine* engine)
         preset["reverb"] = o;
     }
 
+    // Delay.
+    if (auto* d = engine->clientDelayTx()) {
+        QJsonObject o;
+        o["enabled"] = d->isEnabled();
+        o["timeMs"]  = d->timeMs();
+        o["mix"]     = d->mix();
+        preset["delay"] = o;
+    }
+
     // RN2 mic pre-amp (#3054).  Sibling of the per-stage objects so a
     // future NR-cluster addition can extend `rn2` into an object —
     // today we only persist the enable bit because that is the entire
@@ -959,6 +971,15 @@ void ChannelStripPresets::applyTxJson(AudioEngine* engine, const QJsonObject& pr
         r->setMix(jnum(o, "mix", r->mix()));
     }
 
+    // Delay.
+    if (auto* d = engine->clientDelayTx();
+        d && preset.contains("delay") && preset.value("delay").isObject()) {
+        const auto o = preset.value("delay").toObject();
+        d->setEnabled(jbool(o, "enabled", d->isEnabled()));
+        d->setTimeMs(jnum(o, "timeMs", d->timeMs()));
+        d->setMix(jnum(o, "mix", d->mix()));
+    }
+
     // Final brickwall limiter.
     if (auto* lim = engine->clientFinalLimiterTx();
         lim && preset.contains("finalLimiter")
@@ -990,6 +1011,7 @@ void ChannelStripPresets::applyTxJson(AudioEngine* engine, const QJsonObject& pr
     engine->saveClientTubeSettings();
     engine->saveClientPuduSettings();
     engine->saveClientReverbSettings();
+    engine->saveClientDelaySettings();
     engine->saveClientFinalLimiterSettings();
 }
 

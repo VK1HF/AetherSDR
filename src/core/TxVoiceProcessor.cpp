@@ -8,6 +8,7 @@
 #include "ClientPudu.h"
 #include "ClientQuindarTone.h"
 #include "ClientReverb.h"
+#include "ClientDelay.h"
 #include "ClientTube.h"
 #include "ClientTxTestTone.h"
 #include "RNNoiseFilter.h"
@@ -102,6 +103,9 @@ void TxVoiceProcessor::prepareProcessors()
     if (m_processors.reverb) {
         m_processors.reverb->prepare(kDspRate);
     }
+    if (m_processors.delay) {
+        m_processors.delay->prepare(kDspRate);
+    }
     if (m_processors.finalLimiter) {
         m_processors.finalLimiter->prepare(kDspRate);
     }
@@ -147,6 +151,9 @@ void TxVoiceProcessor::reset()
     }
     if (m_processors.reverb) {
         m_processors.reverb->reset();
+    }
+    if (m_processors.delay) {
+        m_processors.delay->reset();
     }
     if (m_processors.finalLimiter) {
         m_processors.finalLimiter->reset();
@@ -517,6 +524,11 @@ void TxVoiceProcessor::processChannelStrip(QByteArray& float48Stereo) noexcept
             case Stage::Reverb:
                 if (m_processors.reverb && m_processors.reverb->isEnabled()) {
                     m_processors.reverb->process(samples, frames, kChannels);
+                }
+                break;
+            case Stage::Delay:
+                if (m_processors.delay && m_processors.delay->isEnabled()) {
+                    m_processors.delay->process(samples, frames, kChannels);
                 }
                 break;
         }

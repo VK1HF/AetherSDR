@@ -23,6 +23,7 @@ class StripEqPanel;
 class StripCompPanel;
 class StripPuduPanel;
 class StripReverbPanel;
+class StripDelayPanel;
 class StripWaveformPanel;
 class StripFinalOutputPanel;
 
@@ -38,7 +39,7 @@ public:
     // The tabs, in the order they appear and in the order the signal meets
     // them. Used as a stack index, so entries are appended, never inserted.
     enum Stage { Gate = 0, Eq, DeEss, Comp, Tube, Enh, Reverb, Output,
-                 StageCount };
+                 Delay, StageCount };
 
     explicit AetherialAudioStrip(AudioEngine* engine, QWidget* parent = nullptr);
     ~AetherialAudioStrip() override;
@@ -155,6 +156,7 @@ private:
     StripDeEssPanel*   m_dess{nullptr};
     StripPuduPanel*    m_pudu{nullptr};
     StripReverbPanel*  m_reverb{nullptr};
+    StripDelayPanel*   m_delay{nullptr};
     StripWaveformPanel*    m_waveform{nullptr};
     StripFinalOutputPanel* m_finalOutput{nullptr};
 };
