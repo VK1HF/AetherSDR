@@ -34,6 +34,7 @@
 #include "TitleBar.h"
 #include "UpdatesWindow.h"
 #include "core/UpdateController.h"
+#include "core/SystemOutputMute.h"
 #include "WindowCaptionButtons.h"
 #include "WindowChrome.h"
 #ifdef Q_OS_MACOS
@@ -1889,6 +1890,28 @@ MainWindow::MainWindow(QWidget* parent)
             m_appletPanel, &AppletPanel::setAntennaList);
     // Overlay-menu antenna wiring is now per-pan in wirePanadapter() (#1260).
     // Antenna list and S-meter are now wired per-widget in onSliceAdded.
+
+    // ── Title bar: TX Mute — mute the computer's output while transmitting ──
+    // Driven by the radio's actual TX state (MOX, VOX, CW break-in,
+    // footswitch) and TUNE, so a second instance on another radio is not
+    // heard over this one's transmissions.
+    m_systemOutputMute = new SystemOutputMute(this);
+    m_systemOutputMute->setEnabled(
+        AppSettings::instance().value("MuteSystemOnTx", "False").toString() == "True");
+    connect(m_titleBar, &TitleBar::txMuteToggled,
+            m_systemOutputMute, &SystemOutputMute::setEnabled);
+    connect(m_systemOutputMute, &SystemOutputMute::engagedChanged,
+            m_titleBar, &TitleBar::setTxMuteEngaged);
+    {
+        const auto updateTxMute = [this]() {
+            const auto& tx = m_radioModel.transmitModel();
+            m_systemOutputMute->setTransmitting(tx.isTransmitting() || tx.isTuning());
+        };
+        connect(&m_radioModel.transmitModel(), &TransmitModel::transmittingChanged,
+                this, updateTxMute);
+        connect(&m_radioModel.transmitModel(), &TransmitModel::tuneChanged,
+                this, updateTxMute);
+    }
 
     // ── Title bar: PC Audio, master volume, headphone volume ────────────────
     // The remote_audio_rx stream controls the radio's audio routing:

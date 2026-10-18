@@ -13,6 +13,7 @@
 #include "WindowCaptionButtons.h"
 #include "core/NetworkDiagnostics.h"
 #include "core/AppSettings.h"
+#include "core/SystemOutputMute.h"
 
 #include <QFrame>
 #include <QHBoxLayout>
@@ -410,6 +411,33 @@ TitleBar::TitleBar(QWidget* parent)
         emit pcAudioToggled(on);
     });
     audio->addWidget(m_pcBtn);
+
+    // TX Mute pill: mute the whole computer's audio output while this radio
+    // transmits (e.g. so a second instance on another radio goes quiet).
+    m_txMuteBtn = new QPushButton("TX Mute");
+    m_txMuteBtn->setObjectName(QStringLiteral("txMuteBtn"));
+    m_txMuteBtn->setCheckable(true);
+    m_txMuteBtn->setFixedHeight(24);
+    m_txMuteBtn->setFixedWidth(70);
+    m_txMuteBtn->setCursor(Qt::PointingHandCursor);
+    m_txMuteBtn->setChecked(s.value("MuteSystemOnTx", "False").toString() == "True");
+    m_txMuteBtn->setAccessibleName("TX Mute");
+    m_txMuteBtn->setAccessibleDescription(
+        "Mute all of the computer's audio output while this radio transmits");
+    m_txMuteBtn->setToolTip(
+        "TX Mute — when on, the Mac's sound output is muted while this radio\n"
+        "transmits and restored when it returns to receive. Mutes everything,\n"
+        "including other AetherSDR windows.");
+    applyTxMuteStyle();
+    connect(m_txMuteBtn, &QPushButton::toggled, this, [this](bool on) {
+        applyTxMuteStyle();
+        auto& ss = AppSettings::instance();
+        ss.setValue("MuteSystemOnTx", on ? "True" : "False");
+        ss.save();
+        emit txMuteToggled(on);
+    });
+    audio->addWidget(m_txMuteBtn);
+    m_txMuteBtn->setVisible(SystemOutputMute::isSupported());
 
     // 64 px track, 3 px groove, 10 px knob — the bar's own slider metrics,
     // narrower and thinner than the app-wide default so two of them fit next to
@@ -1205,6 +1233,50 @@ void TitleBar::applyPcAudioStyle()
               " border-radius: 12px; font-size: 10px; font-weight: bold; }"
               "QPushButton:hover { background: {{color.background.2}}; }");
     ThemeManager::instance().applyStyleSheet(m_pcBtn, style);
+}
+
+void TitleBar::setTxMuteArmed(bool armed)
+{
+    if (!m_txMuteBtn) {
+        return;
+    }
+    QSignalBlocker block(m_txMuteBtn);
+    m_txMuteBtn->setChecked(armed);
+    applyTxMuteStyle();
+}
+
+void TitleBar::setTxMuteEngaged(bool engaged)
+{
+    m_txMuteEngaged = engaged;
+    applyTxMuteStyle();
+}
+
+void TitleBar::applyTxMuteStyle()
+{
+    if (!m_txMuteBtn) {
+        return;
+    }
+    // Off: neutral. Armed: amber. Muting the Mac right now: red text/border.
+    QString style;
+    if (!m_txMuteBtn->isChecked()) {
+        style = QStringLiteral(
+            "QPushButton { background: {{color.background.1}};"
+            " color: {{color.text.secondary}}; border: 1px solid {{color.border.strong}};"
+            " border-radius: 12px; font-size: 10px; font-weight: bold; }"
+            "QPushButton:hover { background: {{color.background.2}}; }");
+    } else if (m_txMuteEngaged) {
+        style = QStringLiteral(
+            "QPushButton { background: {{color.background.warning}};"
+            " color: {{color.accent.danger}}; border: 1px solid {{color.accent.danger}};"
+            " border-radius: 12px; font-size: 10px; font-weight: bold; }");
+    } else {
+        style = QStringLiteral(
+            "QPushButton { background: {{color.background.warning}};"
+            " color: {{color.text.primary}}; border: 1px solid {{color.accent.warning}};"
+            " border-radius: 12px; font-size: 10px; font-weight: bold; }"
+            "QPushButton:hover { background: {{color.background.warning}}; }");
+    }
+    ThemeManager::instance().applyStyleSheet(m_txMuteBtn, style);
 }
 
 void TitleBar::setPcAudioDevices(const QString& inputDevice, const QString& outputDevice)

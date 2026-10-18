@@ -146,6 +146,7 @@ class ConnectionPanel;
 class Ctr2ProxyModel;
 class FirmwareInstallDialog;
 class TitleBar;
+class SystemOutputMute;
 class KiwiSdrManager;
 struct KiwiSdrAntennaProfile;
 class SpectrumWidget;
@@ -1632,6 +1633,7 @@ private:
 
     // GUI — main area
     TitleBar*         m_titleBar{nullptr};
+    SystemOutputMute* m_systemOutputMute{nullptr};  // TX Mute pill
     ::QSizeGrip*      m_sizeGrip{nullptr};
     QSplitter*        m_splitter{nullptr};
     PanadapterStack*  m_panStack{nullptr};
