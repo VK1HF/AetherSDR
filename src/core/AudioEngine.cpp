@@ -964,6 +964,19 @@ void AudioEngine::setReceivePresentationDelays(
     updateRxBufferStats();
 }
 
+void AudioEngine::setRxJitterBufferMs(int ms)
+{
+    const int jitterMs = qBound(0, ms, 1000);
+    const int previous = m_rxJitterBufferMs.exchange(jitterMs);
+    // Raising the target refills before playing on; lowering lets the
+    // existing cushion play down (the cap trims any excess).
+    if (jitterMs > previous) {
+        m_rxJitterPrefilling.store(true, std::memory_order_relaxed);
+    } else if (jitterMs <= 0) {
+        m_rxJitterPrefilling.store(false, std::memory_order_relaxed);
+    }
+}
+
 void AudioEngine::resetReceivePresentationAudioBuffers()
 {
     std::lock_guard<std::recursive_mutex> dspLock(m_dspMutex);
@@ -2040,6 +2053,43 @@ AudioEngine::AudioEngine(QObject* parent)
 
 // The device supplies a byte budget; the same queue, DSP and mix path can be
 // driven with an in-memory QIODevice without opening audio or radio hardware.
+// Jitter buffer gate for the Flex queue (#6537). Holds playout until the
+// target is queued, then plays freely so the cushion is spent across an
+// arrival stall instead of held back like a Receive Sync delay. Refills only
+// once the sink itself has run dry: an app queue emptied into a roomy device
+// buffer is not starvation.
+bool AudioEngine::updateRxJitterPrefill(qsizetype freeBytes, int outputRate,
+                                        bool nr2PacketMode)
+{
+    const int targetMs = m_rxJitterBufferMs.load(std::memory_order_relaxed);
+    if (targetMs <= 0) {
+        m_rxJitterPrefilling.store(false, std::memory_order_relaxed);
+        return false;
+    }
+    const int producerRate = std::max(1, m_rxProducerRate.load());
+    const qsizetype queuedRaw =
+        (nr2PacketMode ? queuedAudioBytes(m_rxPackets) : m_rxBuffer.size())
+        + rawEquivalentAudioBytes(m_rxOutputBuffer.size(), outputRate,
+                                  producerRate);
+    if (m_rxJitterPrefilling.load(std::memory_order_relaxed)) {
+        if (queuedRaw < audioBytesForMsAtRate(producerRate, targetMs)) {
+            return true;
+        }
+        m_rxJitterPrefilling.store(false, std::memory_order_relaxed);
+        return false;
+    }
+    const qsizetype sinkQueuedBytes = m_audioSink
+        ? std::max<qsizetype>(0, m_audioSink->bufferSize() - freeBytes) : 0;
+    if (queuedRaw == 0
+        && sinkQueuedBytes < audioBytesForMsAtRate(outputRate,
+                                                   kRxJitterStarvedMs)) {
+        m_rxJitterPrefilling.store(true, std::memory_order_relaxed);
+        m_rxJitterRefillCount.fetch_add(1);
+        return true;
+    }
+    return false;
+}
+
 void AudioEngine::drainRxAudio(qsizetype freeBytes)
 {
     retireInvalidPcmSources();
@@ -2072,7 +2122,7 @@ void AudioEngine::drainRxAudio(qsizetype freeBytes)
                        externalKiwiPresentationDelayMs)
             : 0;
     const int presentationBufMs =
-        std::max(flexPresentationDelayMs, kiwiPresentationBufferMs);
+        std::max(flexPrebufferMs(), kiwiPresentationBufferMs);
     const int effectiveBufMs =
         std::max({configuredBufMs,
                   anyKiwiAudio ? kKiwiSdrBufferCapMs : configuredBufMs,
@@ -2157,8 +2207,11 @@ void AudioEngine::drainRxAudio(qsizetype freeBytes)
         m_rxPresentationPrebuffering.store(true,
                                            std::memory_order_relaxed);
     }
+    const bool flexJitterPrefilling =
+        updateRxJitterPrefill(freeBytes, sampleRate, nr2PacketMode);
     const bool flexPresentationPrebuffering =
-        m_rxPresentationPrebuffering.load(std::memory_order_relaxed);
+        m_rxPresentationPrebuffering.load(std::memory_order_relaxed)
+        || flexJitterPrefilling;
 
     // Zombie sink watchdog: if we have data waiting but the sink reports
     // zero bytes free for ~2 seconds, the WASAPI handle is likely stale
@@ -2866,6 +2919,12 @@ QJsonArray AudioEngine::audioEndpointDiagnostics() const
         m_flexReceivePresentationDelayMs.load(std::memory_order_relaxed);
     presentation["kiwi_sdr_delay_ms"] =
         m_kiwiReceivePresentationDelayMs.load(std::memory_order_relaxed);
+    presentation["flex_jitter_buffer_ms"] =
+        m_rxJitterBufferMs.load(std::memory_order_relaxed);
+    presentation["flex_jitter_prefilling"] =
+        m_rxJitterPrefilling.load(std::memory_order_relaxed);
+    presentation["flex_jitter_refill_count"] =
+        static_cast<double>(m_rxJitterRefillCount.load());
     presentation["flex_prebuffering"] =
         m_rxPresentationPrebuffering.load(std::memory_order_relaxed);
     presentation["kiwi_sdr_prebuffering"] =
@@ -5572,7 +5631,7 @@ void AudioEngine::processRxAudioData(const QByteArray& pcm, bool emitTncTap,
     const int producerRate = targetBuffer == RxAudioBuffer::Main
         ? m_rxProducerRate.load() : DEFAULT_SAMPLE_RATE;
     const int presentationDelay = targetBuffer == RxAudioBuffer::Main
-        ? m_flexReceivePresentationDelayMs.load() : m_kiwiReceivePresentationDelayMs.load();
+        ? flexPrebufferMs() : m_kiwiReceivePresentationDelayMs.load();
     const qsizetype cap = audioBytesForMsAtRate(producerRate,
         std::max({m_rxBufferCapMs.load(), presentationDelay + 100,
             (targetBuffer == RxAudioBuffer::KiwiSdr || kiwiSdrAudioActive()
