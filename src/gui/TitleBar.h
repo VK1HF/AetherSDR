@@ -57,6 +57,10 @@ public:
     void setMenuBar(QMenuBar* mb);
 
     void setPcAudioEnabled(bool on);
+    // TX Mute pill: armed state (operator's choice) and whether the Mac's
+    // output is being held muted right now. Hidden where unsupported.
+    void setTxMuteArmed(bool armed);
+    void setTxMuteEngaged(bool engaged);
     // Lock PC audio on. A host-modulating backend (HL2) plays and captures all
     // of its audio locally, so turning PC audio off leaves the operator deaf and
     // mute with no indication why — there is no radio-side audio path to fall
@@ -138,6 +142,7 @@ public:
 
 signals:
     void pcAudioToggled(bool on);
+    void txMuteToggled(bool armed);
     void masterVolumeChanged(int pct);
     void headphoneVolumeChanged(int pct);
     void lineoutMuteChanged(bool muted);
@@ -182,6 +187,7 @@ private:
     void showFeatureRequestDialogImpl();
     void updatePcAudioToolTip();
     void applyPcAudioStyle();
+    void applyTxMuteStyle();
     void applyBarStyle();
     // Bar fill pre-composited over the window background, so the bar can be
     // WA_OpaquePaintEvent: a tab repaint then stops here instead of also
@@ -212,6 +218,8 @@ private:
     QLabel*      m_otherTxLabel{nullptr};
     QPushButton* m_mfBtn{nullptr};
     QPushButton* m_pcBtn{nullptr};
+    QPushButton* m_txMuteBtn{nullptr};
+    bool         m_txMuteEngaged{false};
     QPushButton* m_speakerBtn{nullptr};
     QPushButton* m_headphoneBtn{nullptr};
     QSlider*     m_masterSlider{nullptr};

@@ -1009,6 +1009,7 @@ set(CORE_SOURCES
     src/core/ClientPudu.cpp
     src/core/ClientPuduMonitor.cpp
     src/core/ClientReverb.cpp
+    src/core/SystemOutputMute.cpp
     src/core/ClientPhaseRotator.cpp
     src/core/ClientFinalLimiter.cpp
     src/core/ClientTxTestTone.cpp
@@ -2936,7 +2937,7 @@ if(APPLE)
     # RtMidi backend selectors — PUBLIC because MidiControlManager.h includes
     # RtMidi.h (its class layout is backend-conditional in places).
     target_compile_definitions(aethercore PUBLIC __MACOSX_CORE__)
-    target_link_libraries(aethercore PRIVATE "-framework CoreMIDI" "-framework CoreAudio" "-framework CoreFoundation" "-framework IOKit")
+    target_link_libraries(aethercore PRIVATE "-framework CoreMIDI" "-framework CoreAudio" "-framework AudioToolbox" "-framework CoreFoundation" "-framework IOKit")
 elseif(WIN32)
     target_compile_definitions(aethercore PUBLIC __WINDOWS_MM__)
     target_link_libraries(aethercore PRIVATE winmm)
