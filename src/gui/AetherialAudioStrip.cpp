@@ -14,6 +14,7 @@
 #include "StripGatePanel.h"
 #include "StripPuduPanel.h"
 #include "StripReverbPanel.h"
+#include "StripDelayPanel.h"
 #include "StripTubePanel.h"
 #include "StripWaveformPanel.h"
 #include "StripFinalOutputPanel.h"
@@ -25,6 +26,7 @@
 #include "core/ClientGate.h"
 #include "core/ClientPudu.h"
 #include "core/ClientReverb.h"
+#include "core/ClientDelay.h"
 #include "core/ClientTube.h"
 
 #include <QButtonGroup>
@@ -70,6 +72,7 @@ AudioEngine::TxChainStage toChainStage(AetherialAudioStrip::Stage s)
         case AetherialAudioStrip::Tube:   return AudioEngine::TxChainStage::Tube;
         case AetherialAudioStrip::Enh:    return AudioEngine::TxChainStage::Enh;
         case AetherialAudioStrip::Reverb: return AudioEngine::TxChainStage::Reverb;
+        case AetherialAudioStrip::Delay:  return AudioEngine::TxChainStage::Delay;
         default:                          return AudioEngine::TxChainStage::None;
     }
 }
@@ -84,6 +87,7 @@ AetherialAudioStrip::Stage fromChainStage(AudioEngine::TxChainStage s)
         case AudioEngine::TxChainStage::Tube:   return AetherialAudioStrip::Tube;
         case AudioEngine::TxChainStage::Enh:    return AetherialAudioStrip::Enh;
         case AudioEngine::TxChainStage::Reverb: return AetherialAudioStrip::Reverb;
+        case AudioEngine::TxChainStage::Delay:  return AetherialAudioStrip::Delay;
         default:                                return AetherialAudioStrip::StageCount;
     }
 }
@@ -185,6 +189,7 @@ AetherialAudioStrip::AetherialAudioStrip(AudioEngine* engine, QWidget* parent)
     m_dess        = new StripDeEssPanel       (m_audio, this);
     m_pudu        = new StripPuduPanel        (m_audio, this);
     m_reverb      = new StripReverbPanel      (m_audio, this);
+    m_delay       = new StripDelayPanel       (m_audio, this);
     m_waveform    = new StripWaveformPanel    (m_audio, this);
     m_finalOutput = new StripFinalOutputPanel (m_audio, this);
 
@@ -209,6 +214,9 @@ AetherialAudioStrip::AetherialAudioStrip(AudioEngine* engine, QWidget* parent)
         col->addWidget(m_waveform, 1);
         addStage(Output, QStringLiteral("Final Output"), page);
     }
+    // Appended after Output to keep ids stable; the tab bar lists chain
+    // stages in chain order regardless.
+    addStage(Delay,   QStringLiteral("Delay"),      makeStagePage(m_delay));
 
     // MIC and TX indicators. The old chain row carried these as coloured
     // endpoint tiles: MIC green means the PC mic is selected and DAX is off,
@@ -326,6 +334,7 @@ AetherialAudioStrip::AetherialAudioStrip(AudioEngine* engine, QWidget* parent)
     if (m_tube)        m_tube->showForTx();
     if (m_pudu)        m_pudu->showForTx();
     if (m_reverb)      m_reverb->showForTx();
+    if (m_delay)       m_delay->showForTx();
     if (m_finalOutput) m_finalOutput->showForTx();
     if (m_waveform)    m_waveform->showForTx();
 
@@ -336,7 +345,8 @@ AetherialAudioStrip::AetherialAudioStrip(AudioEngine* engine, QWidget* parent)
                            static_cast<QWidget*>(m_comp),
                            static_cast<QWidget*>(m_tube),
                            static_cast<QWidget*>(m_pudu),
-                           static_cast<QWidget*>(m_reverb)}) {
+                           static_cast<QWidget*>(m_reverb),
+                           static_cast<QWidget*>(m_delay)}) {
         tidyEmbeddedPanel(panel);
     }
     // The Final Output page stacks two, and their plates say which is which.
@@ -370,6 +380,7 @@ AetherialAudioStrip::AetherialAudioStrip(AudioEngine* engine, QWidget* parent)
     m_dess->showForTx();
     m_pudu->showForTx();
     m_reverb->showForTx();
+    m_delay->showForTx();
     m_waveform->showForTx();
     m_finalOutput->showForTx();
 
@@ -403,6 +414,7 @@ bool AetherialAudioStrip::stageEnabled(Stage stage) const
         case Tube:   return m_audio->clientTubeTx()  && m_audio->clientTubeTx()->isEnabled();
         case Enh:    return m_audio->clientPuduTx()  && m_audio->clientPuduTx()->isEnabled();
         case Reverb: return m_audio->clientReverbTx() && m_audio->clientReverbTx()->isEnabled();
+        case Delay:  return m_audio->clientDelayTx()  && m_audio->clientDelayTx()->isEnabled();
         default:     return false;
     }
 }
@@ -444,6 +456,11 @@ void AetherialAudioStrip::setStageEnabled(Stage stage, bool on)
         case Reverb:
             if (auto* r = m_audio->clientReverbTx()) {
                 r->setEnabled(on); m_audio->saveClientReverbSettings();
+            }
+            break;
+        case Delay:
+            if (auto* d = m_audio->clientDelayTx()) {
+                d->setEnabled(on); m_audio->saveClientDelaySettings();
             }
             break;
         default:
@@ -630,6 +647,7 @@ void AetherialAudioStrip::refreshAllPanelsFromEngine()
     if (m_dess)   m_dess->syncControlsFromEngine();
     if (m_pudu)   m_pudu->syncControlsFromEngine();
     if (m_reverb) m_reverb->syncControlsFromEngine();
+    if (m_delay)  m_delay->syncControlsFromEngine();
     if (m_waveform)    m_waveform->syncControlsFromEngine();
     if (m_finalOutput) m_finalOutput->syncControlsFromEngine();
     if (m_tabs)   m_tabs->refreshFromHost();

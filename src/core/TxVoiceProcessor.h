@@ -17,6 +17,7 @@ class ClientGate;
 class ClientPudu;
 class ClientQuindarTone;
 class ClientReverb;
+class ClientDelay;
 class ClientTube;
 class ClientTxTestTone;
 class RNNoiseFilter;
@@ -48,6 +49,7 @@ public:
         Tube = 5,
         Enh = 6,
         Reverb = 7,
+        Delay = 8,
     };
 
     struct Processors {
@@ -60,6 +62,7 @@ public:
         ClientTube* tube{nullptr};
         ClientPudu* pudu{nullptr};
         ClientReverb* reverb{nullptr};
+        ClientDelay* delay{nullptr};
         ClientFinalLimiter* finalLimiter{nullptr};
         ClientTxTestTone* testTone{nullptr};
         // RNNoiseFilter is deliberately absent: it is the one processor whose

@@ -7,6 +7,7 @@
 #include "core/ClientTube.h"
 #include "core/ClientPudu.h"
 #include "core/ClientReverb.h"
+#include "core/ClientDelay.h"
 
 #include <QAction>
 #include <QApplication>
@@ -93,6 +94,7 @@ QString stageLabel(AudioEngine::TxChainStage s)
         case AudioEngine::TxChainStage::Tube:   return "TUBE";
         case AudioEngine::TxChainStage::Enh:    return "EVO";
         case AudioEngine::TxChainStage::Reverb: return "VERB";
+        case AudioEngine::TxChainStage::Delay:  return "DLY";
         case AudioEngine::TxChainStage::None:   return "";
     }
     return "";
@@ -171,7 +173,8 @@ bool ClientChainWidget::isStageImplemented(AudioEngine::TxChainStage s) const
         || s == AudioEngine::TxChainStage::DeEss
         || s == AudioEngine::TxChainStage::Tube
         || s == AudioEngine::TxChainStage::Enh
-        || s == AudioEngine::TxChainStage::Reverb;
+        || s == AudioEngine::TxChainStage::Reverb
+        || s == AudioEngine::TxChainStage::Delay;
 }
 
 bool ClientChainWidget::isStageBypassed(AudioEngine::TxChainStage s) const
@@ -192,6 +195,8 @@ bool ClientChainWidget::isStageBypassed(AudioEngine::TxChainStage s) const
             return !(m_audio->clientPuduTx() && m_audio->clientPuduTx()->isEnabled());
         case AudioEngine::TxChainStage::Reverb:
             return !(m_audio->clientReverbTx() && m_audio->clientReverbTx()->isEnabled());
+        case AudioEngine::TxChainStage::Delay:
+            return !(m_audio->clientDelayTx() && m_audio->clientDelayTx()->isEnabled());
         default:
             return true;
     }
@@ -666,6 +671,12 @@ void ClientChainWidget::toggleStageBypass(int boxIdx)
                 m_audio->saveClientReverbSettings();
             }
             break;
+        case AudioEngine::TxChainStage::Delay:
+            if (m_audio->clientDelayTx()) {
+                m_audio->clientDelayTx()->setEnabled(newEnabled);
+                m_audio->saveClientDelaySettings();
+            }
+            break;
         default:
             return;
     }
@@ -724,6 +735,9 @@ void ClientChainWidget::contextMenuEvent(QContextMenuEvent* ev)
         } else if (stage == AudioEngine::TxChainStage::Reverb && m_audio->clientReverbTx()) {
             m_audio->clientReverbTx()->setEnabled(newEnabled);
             m_audio->saveClientReverbSettings();
+        } else if (stage == AudioEngine::TxChainStage::Delay && m_audio->clientDelayTx()) {
+            m_audio->clientDelayTx()->setEnabled(newEnabled);
+            m_audio->saveClientDelaySettings();
         }
         emit stageEnabledChanged(stage, newEnabled);
         update();

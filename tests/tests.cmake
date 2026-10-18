@@ -4946,6 +4946,13 @@ add_executable(client_reverb_test
 )
 target_include_directories(client_reverb_test PRIVATE src)
 
+add_executable(client_delay_test
+    tests/client_delay_test.cpp
+    src/core/ClientDelay.cpp
+)
+target_include_directories(client_delay_test PRIVATE src)
+add_test(NAME client_delay_test COMMAND client_delay_test)
+
 add_executable(iambic_keyer_test
     tests/iambic_keyer_test.cpp
     src/core/IambicKeyer.cpp

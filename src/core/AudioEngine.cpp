@@ -19,6 +19,7 @@
 #include "ClientPudu.h"
 #include "ClientPuduMonitor.h"
 #include "ClientReverb.h"
+#include "ClientDelay.h"
 #include "ClientFinalLimiter.h"
 #include "ClientTxTestTone.h"
 #include "ClientQuindarTone.h"
@@ -106,6 +107,8 @@ static_assert(static_cast<uint8_t>(AudioEngine::TxChainStage::Enh)
               == static_cast<uint8_t>(TxVoiceProcessor::Stage::Enh));
 static_assert(static_cast<uint8_t>(AudioEngine::TxChainStage::Reverb)
               == static_cast<uint8_t>(TxVoiceProcessor::Stage::Reverb));
+static_assert(static_cast<uint8_t>(AudioEngine::TxChainStage::Delay)
+              == static_cast<uint8_t>(TxVoiceProcessor::Stage::Delay));
 
 static QString wisdomDir();
 static void logNr2WisdomSummary(const QString& context);
@@ -1877,6 +1880,7 @@ AudioEngine::AudioEngine(QObject* parent)
     , m_clientPuduTx(std::make_unique<ClientPudu>())
     , m_clientPuduRx(std::make_unique<ClientPudu>())
     , m_clientReverbTx(std::make_unique<ClientReverb>())
+    , m_clientDelayTx(std::make_unique<ClientDelay>())
     , m_clientFinalLimiterTx(std::make_unique<ClientFinalLimiter>())
     , m_clientTxTestTone(std::make_unique<ClientTxTestTone>())
     , m_wsprBeacon(std::make_unique<WsprBeacon>())
@@ -1962,6 +1966,7 @@ AudioEngine::AudioEngine(QObject* parent)
     txProcessors.tube = m_clientTubeTx.get();
     txProcessors.pudu = m_clientPuduTx.get();
     txProcessors.reverb = m_clientReverbTx.get();
+    txProcessors.delay = m_clientDelayTx.get();
     txProcessors.finalLimiter = m_clientFinalLimiterTx.get();
     txProcessors.testTone = m_clientTxTestTone.get();
     txProcessors.quindar = m_clientQuindarTone.get();
@@ -1988,6 +1993,7 @@ AudioEngine::AudioEngine(QObject* parent)
     loadClientTubeSettings();    // restore persisted tube params
     loadClientPuduSettings();    // restore persisted PUDU params
     loadClientReverbSettings();  // restore persisted reverb params
+    loadClientDelaySettings();
     loadClientFinalLimiterSettings();  // restore persisted final-limiter params
     loadClientQuindarSettings();       // restore persisted Quindar tone params
     loadClientRxChainOrder();    // restore persisted RX chain order (Phase 0+)
@@ -6245,6 +6251,7 @@ QString stageName(AudioEngine::TxChainStage s)
         case AudioEngine::TxChainStage::Tube:   return "Tube";
         case AudioEngine::TxChainStage::Enh:    return "Enh";
         case AudioEngine::TxChainStage::Reverb: return "Reverb";
+        case AudioEngine::TxChainStage::Delay:  return "Delay";
         case AudioEngine::TxChainStage::None:   return "";
     }
     return "";
@@ -6259,6 +6266,7 @@ AudioEngine::TxChainStage stageFromName(const QString& name)
     if (name == "Tube")   return AudioEngine::TxChainStage::Tube;
     if (name == "Enh")    return AudioEngine::TxChainStage::Enh;
     if (name == "Reverb") return AudioEngine::TxChainStage::Reverb;
+    if (name == "Delay")  return AudioEngine::TxChainStage::Delay;
     return AudioEngine::TxChainStage::None;
 }
 
@@ -6273,6 +6281,7 @@ QVector<AudioEngine::TxChainStage> defaultChain()
         AudioEngine::TxChainStage::Comp,
         AudioEngine::TxChainStage::Tube,
         AudioEngine::TxChainStage::Enh,
+        AudioEngine::TxChainStage::Delay,
         AudioEngine::TxChainStage::Reverb,
     };
 }
@@ -6421,6 +6430,12 @@ void AudioEngine::setTxBypassed(bool on)
                     saveClientReverbSettings();
                 }
                 break;
+            case TxChainStage::Delay:
+                if (m_clientDelayTx) {
+                    m_clientDelayTx->setEnabled(enabled);
+                    saveClientDelaySettings();
+                }
+                break;
             case TxChainStage::None:
                 break;
         }
@@ -6435,6 +6450,7 @@ void AudioEngine::setTxBypassed(bool on)
             case TxChainStage::Tube:   return m_clientTubeTx   && m_clientTubeTx->isEnabled();
             case TxChainStage::Enh:    return m_clientPuduTx   && m_clientPuduTx->isEnabled();
             case TxChainStage::Reverb: return m_clientReverbTx && m_clientReverbTx->isEnabled();
+            case TxChainStage::Delay:  return m_clientDelayTx  && m_clientDelayTx->isEnabled();
             case TxChainStage::None:   return false;
         }
         return false;
@@ -6448,6 +6464,7 @@ void AudioEngine::setTxBypassed(bool on)
         TxChainStage::Tube,
         TxChainStage::Enh,
         TxChainStage::Reverb,
+        TxChainStage::Delay,
     };
 
     if (on) {
@@ -7332,6 +7349,31 @@ void AudioEngine::saveClientReverbSettings()
     s.setValue("ClientReverbTxMix",
         QString::number(m_clientReverbTx->mix()));
     emit clientReverbStateChanged();
+}
+
+void AudioEngine::loadClientDelaySettings()
+{
+    if (!m_clientDelayTx) return;
+    auto& s = AppSettings::instance();
+    m_clientDelayTx->setEnabled(
+        s.value("ClientDelayTxEnabled", "False").toString() == "True");
+    m_clientDelayTx->setTimeMs(
+        s.value("ClientDelayTxTimeMs",
+                QString::number(ClientDelay::kDefaultTimeMs)).toFloat());
+    m_clientDelayTx->setMix(
+        s.value("ClientDelayTxMix",
+                QString::number(ClientDelay::kDefaultMix)).toFloat());
+}
+
+void AudioEngine::saveClientDelaySettings()
+{
+    if (!m_clientDelayTx) return;
+    auto& s = AppSettings::instance();
+    s.setValue("ClientDelayTxEnabled",
+               m_clientDelayTx->isEnabled() ? QString("True") : QString("False"));
+    s.setValue("ClientDelayTxTimeMs", QString::number(m_clientDelayTx->timeMs()));
+    s.setValue("ClientDelayTxMix",    QString::number(m_clientDelayTx->mix()));
+    emit clientDelayStateChanged();
 }
 
 void AudioEngine::loadClientFinalLimiterSettings()

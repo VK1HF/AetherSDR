@@ -1009,6 +1009,7 @@ set(CORE_SOURCES
     src/core/ClientPudu.cpp
     src/core/ClientPuduMonitor.cpp
     src/core/ClientReverb.cpp
+    src/core/ClientDelay.cpp
     src/core/ClientPhaseRotator.cpp
     src/core/ClientFinalLimiter.cpp
     src/core/ClientTxTestTone.cpp
@@ -1534,6 +1535,7 @@ set(GUI_SOURCES
     src/gui/StripPuduPanel.cpp
     src/gui/ClientReverbApplet.cpp
     src/gui/StripReverbPanel.cpp
+    src/gui/StripDelayPanel.cpp
     src/gui/StripWaveformPanel.cpp
     src/gui/StripFinalOutputPanel.cpp
     src/gui/AetherialAudioStrip.cpp

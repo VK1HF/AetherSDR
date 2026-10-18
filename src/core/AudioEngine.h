@@ -67,6 +67,7 @@ class ClientTube;
 class ClientPudu;
 class ClientPuduMonitor;
 class ClientReverb;
+class ClientDelay;
 class ClientFinalLimiter;
 class ClientTxTestTone;
 class RxClientEffects;
@@ -470,6 +471,9 @@ public:
     // optional stage in the PooDoo™ chain.
     ClientReverb* clientReverbTx() { return m_clientReverbTx.get(); }
 
+    // Client-side TX delay — single slapback/doubling echo for presence.
+    ClientDelay* clientDelayTx() { return m_clientDelayTx.get(); }
+
     // Final brickwall limiter — sits at the very tail of the TX audio
     // path, after every user-configurable chain stage AND after PC mic
     // gain, so no sample escapes louder than the configured ceiling
@@ -520,6 +524,7 @@ public:
         Tube   = 5,
         Enh    = 6,   // PUDU slot
         Reverb = 7,
+        Delay  = 8,
     };
     static constexpr int kMaxTxChainStages = 8;  // packs into uint64_t
 
@@ -633,6 +638,9 @@ public:
     // floating editor) can refresh from a single notification path
     // instead of polling on a timer.
     void saveClientReverbSettings();
+    // Client-side TX delay — persistence; save emits clientDelayStateChanged().
+    void loadClientDelaySettings();
+    void saveClientDelaySettings();
     void loadClientFinalLimiterSettings();
     void saveClientFinalLimiterSettings() const;
     // Aetherial Tube Pre-Amp TX state — nested-JSON shape under one key
@@ -885,6 +893,8 @@ signals:
     // changes — UI surfaces (strip panel + docked applet) listen and
     // refresh from a single notification path instead of polling.
     void clientReverbStateChanged();
+    // Fired by saveClientDelaySettings() after any delay param changes.
+    void clientDelayStateChanged();
 
 private slots:
     void onTxAudioReady();
@@ -1427,6 +1437,8 @@ private:
     std::unique_ptr<ClientPudu> m_clientPuduRx;
     // Client-side TX reverb.
     std::unique_ptr<ClientReverb> m_clientReverbTx;
+    // Client-side TX delay.
+    std::unique_ptr<ClientDelay> m_clientDelayTx;
     std::unique_ptr<ClientFinalLimiter> m_clientFinalLimiterTx;
     std::unique_ptr<ClientTxTestTone>   m_clientTxTestTone;
     std::unique_ptr<WsprBeacon>         m_wsprBeacon;
@@ -1446,7 +1458,7 @@ private:
     // a uint64_t so the audio thread can load the full order in a
     // single atomic read per block.  TxChainStage::None terminates the
     // list; unused slots are zero.  Default canonical order:
-    // [Gate, Eq, DeEss, Comp, Tube, Enh, Reverb].
+    // [Gate, Eq, DeEss, Comp, Tube, Enh, Delay, Reverb].
     std::atomic<uint64_t> m_txChainPacked{0};
     // Master-bypass snapshot — the stages that were enabled at the
     // moment setTxBypassed(true) was called.  Used solely to restore
