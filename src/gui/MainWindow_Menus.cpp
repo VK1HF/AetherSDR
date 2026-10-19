@@ -41,6 +41,7 @@
 #include "SupportDialog.h"
 #include "TitleBar.h"
 #include "UpdatesWindow.h"
+#include "core/SystemOutputMute.h"
 #include "MidiMappingDialog.h"
 #include "ProfileImportExportDialog.h"
 #include "ProfileManagerDialog.h"
@@ -367,6 +368,16 @@ void MainWindow::buildMenuBar()
     // right-click, which no keyboard or screen-reader operator can reach
     // (docs/a11y.md: every interactive widget needs a non-mouse activation
     // path). Same menu, same handler.
+    // TX Mute's unmute delay, also on the button's right-click; this is the
+    // path that needs no mouse.
+    if (SystemOutputMute::isSupported()) {
+        QMenu* txMuteDelay = settingsMenu->addMenu("TX Mute Unmute Delay");
+        connect(txMuteDelay, &QMenu::aboutToShow, this, [this, txMuteDelay] {
+            txMuteDelay->clear();
+            m_titleBar->addTxMuteTailChoices(txMuteDelay);
+        });
+    }
+
     auto* voiceKeyerSourceAct = settingsMenu->addAction("Voice Keyer Source...");
     connect(voiceKeyerSourceAct, &QAction::triggered, this, [this] {
         showVoiceKeyerSourceMenu(voiceKeyerSourceMenuAnchor());
