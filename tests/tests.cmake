@@ -6759,6 +6759,8 @@ add_test(NAME voice_keyer_dvk_model_test COMMAND voice_keyer_dvk_model_test)
 add_executable(dvk_panel_test
     tests/dvk_panel_test.cpp
     src/gui/DvkPanel.cpp
+    src/models/VoiceKeyerLoop.cpp
+    src/models/VoiceKeyerLoop.h
     src/gui/DvkPanel.h
     # The slot context menu goes through roundMenuTree().
     src/gui/RoundedMenu.cpp
@@ -10808,3 +10810,16 @@ if(HAVE_PIPEWIRE)
     target_link_libraries(pipewire_rx_bridge_test PRIVATE aethercore Qt6::Core)
     add_test(NAME pipewire_rx_bridge_test COMMAND pipewire_rx_bridge_test)
 endif()
+
+# DVK LOOP: replay a slot on air with a pause, ended at once by TX, TUNE, a
+# cut-off play, a refused command or a keyer swap. Fake keyer, scaled timing.
+add_executable(voice_keyer_loop_test
+    tests/voice_keyer_loop_test.cpp
+    src/models/VoiceKeyerLoop.cpp
+    src/models/VoiceKeyerLoop.h
+    src/models/VoiceKeyer.cpp
+    src/models/VoiceKeyer.h
+)
+target_include_directories(voice_keyer_loop_test PRIVATE src)
+target_link_libraries(voice_keyer_loop_test PRIVATE Qt6::Core)
+add_test(NAME voice_keyer_loop_test COMMAND voice_keyer_loop_test)

@@ -23,6 +23,11 @@ public:
     static QString slotName(int id);
     static void setSlotName(int id, const QString& name);
 
+    // Seconds between plays when the DVK panel loops a slot (both keyers).
+    // 0 when never set, so the caller applies its own default.
+    static int loopGapSeconds();
+    static void setLoopGapSeconds(int seconds);
+
     // Where local recordings live: ~/Documents/AetherSDR/VoiceKeyer, next to
     // QsoRecorder's ~/Documents/AetherSDR/Recordings, so operators can find,
     // copy and drop in WAVs.

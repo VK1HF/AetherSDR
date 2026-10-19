@@ -1,10 +1,12 @@
 #include "DvkPanel.h"
 #include "models/VoiceKeyer.h"
+#include "models/VoiceKeyerLoop.h"
 #include <QAccessible>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
 #include <QShortcut>
+#include <QSpinBox>
 #include <QPainter>
 #include <QFrame>
 #include <QMargins>
@@ -82,7 +84,14 @@ constexpr const char* kPanelStyle =
     "QPushButton#dvkPlay:checked { background: {{color.background.tx}}; color: {{color.tx.mox.text}};"
     " border-color: {{color.tx.mox.border}}; }"
     "QPushButton[dvkRole=\"transport\"]:disabled { background: transparent; color: {{color.canon.muted}};"
-    " border-color: {{color.canon.line}}; }";
+    " border-color: {{color.canon.line}}; }"
+    "QPushButton#dvkLoop:checked { background: {{color.background.tx}}; color: {{color.tx.mox.text}};"
+    " border-color: {{color.tx.mox.border}}; }"
+
+    "QLabel[dvkRole=\"loopLabel\"] { color: {{color.canon.muted}}; font-size: 11px; background: transparent; }"
+    "QSpinBox[dvkRole=\"loopGap\"] { background: {{color.canon.control}}; color: {{color.canon.ink}};"
+    " border: 1px solid {{color.canon.lineHi}}; border-radius: 4px; padding: 0px 4px; font-size: 11px; }"
+    "QSpinBox[dvkRole=\"loopGap\"]:focus { border-color: {{color.canon.aqua}}; }";
 
 // Property changes do not restyle a widget until it is re-polished.
 void setStyleProperty(QWidget* widget, const char* name, const QVariant& value)
@@ -100,6 +109,9 @@ void setStyleProperty(QWidget* widget, const char* name, const QVariant& value)
 DvkPanel::DvkPanel(VoiceKeyer* keyer, QWidget* parent)
     : QWidget(parent), m_model(keyer)
 {
+    // Before the panel connects to the keyer, so the loop has seen a status
+    // by the time the panel draws it.
+    m_loop = new VoiceKeyerLoop(m_model, this);
     theme::setContainer(this, QStringLiteral("panel/dvk"));
     setObjectName(QStringLiteral("dvkPanel"));
     setAttribute(Qt::WA_StyledBackground);
@@ -299,6 +311,41 @@ DvkPanel::DvkPanel(VoiceKeyer* keyer, QWidget* parent)
 
     outerVbox->addLayout(btnRow);
 
+    // Loop: replay the selected slot on air with a pause between plays, until
+    // LOOP is pressed again or the operator transmits or tunes.
+    auto* loopRow = new QHBoxLayout;
+    loopRow->setSpacing(4);
+    m_loopBtn = new QPushButton(QString::fromUtf8("\u21BB LOOP"));
+    m_loopBtn->setObjectName(QStringLiteral("dvkLoop"));
+    m_loopBtn->setAccessibleName(QStringLiteral("Loop on air"));
+    m_loopBtn->setAccessibleDescription(QStringLiteral(
+        "Transmits the selected slot over and over, pausing between plays. Press again, "
+        "transmit or tune to stop."));
+    m_loopBtn->setToolTip(QStringLiteral(
+        "Repeat the selected slot on air with a pause between plays.\n"
+        "Stops when pressed again, or when you transmit or tune."));
+    m_loopBtn->setCheckable(true);
+    m_loopBtn->setProperty("dvkRole", QStringLiteral("transport"));
+    m_loopBtn->setFixedHeight(24);
+    markTxKeying(m_loopBtn);   // plays the selected slot on air → keys TX
+    loopRow->addWidget(m_loopBtn, 1);
+
+    auto* loopLabel = new QLabel(QStringLiteral("pause"));
+    loopLabel->setProperty("dvkRole", QStringLiteral("loopLabel"));
+    loopRow->addWidget(loopLabel);
+
+    m_loopGapSpin = new QSpinBox;
+    m_loopGapSpin->setObjectName(QStringLiteral("dvkLoopGap"));
+    m_loopGapSpin->setProperty("dvkRole", QStringLiteral("loopGap"));
+    m_loopGapSpin->setRange(VoiceKeyerLoop::kMinGapSeconds, VoiceKeyerLoop::kMaxGapSeconds);
+    m_loopGapSpin->setValue(m_loop->gapSeconds());
+    m_loopGapSpin->setSuffix(QStringLiteral(" s"));
+    m_loopGapSpin->setFixedHeight(24);
+    m_loopGapSpin->setAccessibleName(QStringLiteral("Pause between loops"));
+    m_loopGapSpin->setToolTip(QStringLiteral("Seconds between the end of one play and the next"));
+    loopRow->addWidget(m_loopGapSpin);
+    outerVbox->addLayout(loopRow);
+
     AetherSDR::ThemeManager::instance().applyStyleSheet(this, styleTemplate());
 
     // Wire buttons
@@ -306,6 +353,11 @@ DvkPanel::DvkPanel(VoiceKeyer* keyer, QWidget* parent)
     // latches "checked" for an operation that was not sent.
     connect(m_recBtn, &QPushButton::clicked, this, [this](bool checked) {
         if (m_selectedSlot < 1) return;
+        if (m_loop->isActive()) {
+            m_loop->stop();
+            onStatusChanged(static_cast<int>(m_model->status()), m_model->activeId());
+            return;
+        }
         if (!checked) {
             m_model->recStop(activeOrSelected());
         } else if (m_model->canStartOperation()) {
@@ -317,8 +369,29 @@ DvkPanel::DvkPanel(VoiceKeyer* keyer, QWidget* parent)
 
     connect(m_stopBtn, &QPushButton::clicked, this, &DvkPanel::stopActiveOperation);
 
+    connect(m_loopBtn, &QPushButton::clicked, this, &DvkPanel::toggleLoop);
+    connect(m_loopGapSpin, &QSpinBox::valueChanged, m_loop, &VoiceKeyerLoop::setGapSeconds);
+    connect(m_loop, &VoiceKeyerLoop::gapSecondsChanged, this, [this](int seconds) {
+        if (m_loopGapSpin->value() != seconds)
+            m_loopGapSpin->setValue(seconds);
+    });
+    connect(m_loop, &VoiceKeyerLoop::phaseChanged, this, &DvkPanel::onLoopPhaseChanged);
+    connect(m_loop, &VoiceKeyerLoop::interrupted, this, [this](const QString& reason) {
+        announceStatus(reason);
+    });
+    m_loopTimer = new QTimer(this);
+    m_loopTimer->setInterval(100);
+    connect(m_loopTimer, &QTimer::timeout, this, [this] {
+        m_statusLabel->setText(loopWaitingText());
+    });
+
     connect(m_playBtn, &QPushButton::clicked, this, [this](bool checked) {
         if (m_selectedSlot < 1) return;
+        if (m_loop->isActive()) {
+            m_loop->stop();
+            onStatusChanged(static_cast<int>(m_model->status()), m_model->activeId());
+            return;
+        }
         if (!checked) {
             m_model->playbackStop(activeOrSelected());
         } else if (m_model->canStartOperation() && durationForSlot(m_selectedSlot) > 0) {
@@ -330,6 +403,11 @@ DvkPanel::DvkPanel(VoiceKeyer* keyer, QWidget* parent)
 
     connect(m_prevBtn, &QPushButton::clicked, this, [this](bool checked) {
         if (m_selectedSlot < 1) return;
+        if (m_loop->isActive()) {
+            m_loop->stop();
+            onStatusChanged(static_cast<int>(m_model->status()), m_model->activeId());
+            return;
+        }
         if (!checked) {
             m_model->previewStop(activeOrSelected());
         } else if (m_model->canStartOperation() && durationForSlot(m_selectedSlot) > 0) {
@@ -457,6 +535,8 @@ void DvkPanel::setPendingSourceNotice(const QString& text)
 QString DvkPanel::statusSuffix() const
 {
     QString suffix;
+    if (m_loop && m_loop->isActive())
+        suffix += QStringLiteral(" · looping");
     if (m_voxHeldOff)
         suffix += QStringLiteral(" · VOX held off");
     if (!m_pendingSourceNotice.isEmpty())
@@ -481,6 +561,11 @@ void DvkPanel::announceStatus(const QString& text, bool error)
 
 void DvkPanel::togglePlayback(int id)
 {
+    // Any F-key ends a loop, and does nothing more: the operator is taking over.
+    if (m_loop->isActive()) {
+        m_loop->stop();
+        return;
+    }
     if (m_model->status() == VoiceKeyer::Playback && m_model->activeId() == id) {
         m_model->playbackStop(id);
     } else if (m_model->canStartOperation() && durationForSlot(id) > 0) {
@@ -491,6 +576,10 @@ void DvkPanel::togglePlayback(int id)
 
 void DvkPanel::stopActiveOperation()
 {
+    if (m_loop->isActive()) {
+        m_loop->stop();   // stops a play in progress too
+        return;
+    }
     // Before the radio has echoed a start (or before any status at all), stop
     // what we asked for: STOP must never be weaker than the start it follows.
     const int stopId = activeOrSelected();
@@ -532,7 +621,52 @@ void DvkPanel::refreshTransport()
     m_recBtn->setEnabled(idle || s == VoiceKeyer::Recording);
     m_playBtn->setEnabled((idle && hasAudio) || s == VoiceKeyer::Playback);
     m_prevBtn->setEnabled((idle && hasAudio) || s == VoiceKeyer::Preview);
-    m_stopBtn->setEnabled(!idle);
+    m_stopBtn->setEnabled(!idle || m_loop->isActive());
+    m_loopBtn->setEnabled((idle && hasAudio) || m_loop->isActive()
+                          || s == VoiceKeyer::Playback);
+}
+
+void DvkPanel::toggleLoop(bool on)
+{
+    if (!on) {
+        m_loop->stop();
+        return;
+    }
+    // Loop what is on air now if a slot is playing, else the selected slot.
+    const int slot = m_model->status() == VoiceKeyer::Playback && m_model->activeId() >= 1
+                         ? m_model->activeId()
+                         : m_selectedSlot;
+    if (!m_loop->start(slot)) {
+        m_loopBtn->setChecked(false);
+        announceStatus(QStringLiteral("Loop needs a recorded slot and an idle voice keyer."), true);
+    }
+}
+
+void DvkPanel::onLoopPhaseChanged()
+{
+    const auto phase = m_loop->phase();
+    m_loopBtn->setChecked(phase != VoiceKeyerLoop::Phase::Off);
+    const bool waiting = phase == VoiceKeyerLoop::Phase::Waiting
+                         || phase == VoiceKeyerLoop::Phase::AwaitUnkey;
+    if (waiting) {
+        announceStatus(loopWaitingText());
+        if (!m_loopTimer->isActive())
+            m_loopTimer->start();
+    } else {
+        m_loopTimer->stop();
+        if (phase == VoiceKeyerLoop::Phase::Off && m_model->status() == VoiceKeyer::Idle)
+            announceStatus(QStringLiteral("Idle"));
+    }
+    refreshTransport();
+}
+
+QString DvkPanel::loopWaitingText() const
+{
+    if (m_loop->phase() == VoiceKeyerLoop::Phase::AwaitUnkey)
+        return QStringLiteral("Looping · slot %1 · waiting for TX to drop").arg(m_loop->slot());
+    const int ms = m_loop->msUntilNextPlay();
+    return QStringLiteral("Looping · slot %1 · next in %2.%3s · press LOOP to stop")
+        .arg(m_loop->slot()).arg(ms / 1000).arg((ms % 1000) / 100);
 }
 
 int DvkPanel::selectedSlot() const
@@ -620,7 +754,13 @@ void DvkPanel::onStatusChanged(int status, int id)
 
         switch (s) {
         case VoiceKeyer::Disabled: announceStatus("Disabled · SmartSDR+ required"); break;
-        default:                 announceStatus("Idle"); break;
+        default:
+            // Between loops the keyer is idle, but the loop is still running.
+            if (m_loop->isActive() && m_loop->phase() != VoiceKeyerLoop::Phase::Starting)
+                announceStatus(loopWaitingText());
+            else
+                announceStatus("Idle");
+            break;
         }
     }
 }
@@ -783,6 +923,7 @@ void DvkPanel::setKeyer(VoiceKeyer* keyer)
     // status would keep driving this panel after the swap.
     disconnect(m_model, nullptr, this, nullptr);
     m_model = keyer;
+    m_loop->setKeyer(keyer);   // ends a running loop; connected before the panel
     connectKeyer();
     refreshFromKeyer();
 }
