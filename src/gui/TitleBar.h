@@ -61,6 +61,8 @@ public:
     // output is being held muted right now. Hidden where unsupported.
     void setTxMuteArmed(bool armed);
     void setTxMuteEngaged(bool engaged);
+    // The saved unmute delay after TX, in ms (right-click on TX Mute).
+    static int txMuteTailMs();
     // Lock PC audio on. A host-modulating backend (HL2) plays and captures all
     // of its audio locally, so turning PC audio off leaves the operator deaf and
     // mute with no indication why — there is no radio-side audio path to fall
@@ -143,6 +145,7 @@ public:
 signals:
     void pcAudioToggled(bool on);
     void txMuteToggled(bool armed);
+    void txMuteTailChanged(int ms);
     void masterVolumeChanged(int pct);
     void headphoneVolumeChanged(int pct);
     void lineoutMuteChanged(bool muted);
@@ -188,6 +191,7 @@ private:
     void updatePcAudioToolTip();
     void applyPcAudioStyle();
     void applyTxMuteStyle();
+    void updateTxMuteToolTip();
     void applyBarStyle();
     // Bar fill pre-composited over the window background, so the bar can be
     // WA_OpaquePaintEvent: a tab repaint then stops here instead of also
