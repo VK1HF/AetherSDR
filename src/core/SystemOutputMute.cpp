@@ -63,10 +63,13 @@ bool writeProperty(AudioObjectID device, const AudioObjectPropertyAddress& addre
 SystemOutputMute::SystemOutputMute(QObject* parent)
     : QObject(parent)
 {
+    m_tailTimer.setSingleShot(true);
+    connect(&m_tailTimer, &QTimer::timeout, this, &SystemOutputMute::release);
 }
 
 SystemOutputMute::~SystemOutputMute()
 {
+    m_tailTimer.stop();
     release();
 }
 
@@ -88,6 +91,7 @@ void SystemOutputMute::setEnabled(bool on)
     if (m_enabled && m_transmitting) {
         engage();
     } else if (!m_enabled) {
+        m_tailTimer.stop();   // switched off: sound back now, no tail
         release();
     }
 }
@@ -98,11 +102,19 @@ void SystemOutputMute::setTransmitting(bool tx)
         return;
     }
     m_transmitting = tx;
-    if (tx && m_enabled) {
-        engage();
-    } else if (!tx) {
-        release();
+    if (tx) {
+        m_tailTimer.stop();   // keyed again inside the tail: stay muted
+        if (m_enabled) {
+            engage();
+        }
+    } else if (m_engaged) {
+        m_tailTimer.start(m_tailMs);
     }
+}
+
+void SystemOutputMute::setTailMs(int ms)
+{
+    m_tailMs = qBound(kMinTailMs, ms, kMaxTailMs);
 }
 
 void SystemOutputMute::engage()

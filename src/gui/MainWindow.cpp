@@ -1896,8 +1896,11 @@ MainWindow::MainWindow(QWidget* parent)
     m_systemOutputMute = new SystemOutputMute(this);
     m_systemOutputMute->setEnabled(
         AppSettings::instance().value("MuteSystemOnTx", "False").toString() == "True");
+    m_systemOutputMute->setTailMs(TitleBar::txMuteTailMs());
     connect(m_titleBar, &TitleBar::txMuteToggled,
             m_systemOutputMute, &SystemOutputMute::setEnabled);
+    connect(m_titleBar, &TitleBar::txMuteTailChanged,
+            m_systemOutputMute, &SystemOutputMute::setTailMs);
     connect(m_systemOutputMute, &SystemOutputMute::engagedChanged,
             m_titleBar, &TitleBar::setTxMuteEngaged);
     {

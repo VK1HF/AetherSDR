@@ -46,6 +46,7 @@
 #include <QPropertyAnimation>
 #include <QWindow>
 #include <QMenu>
+#include <QActionGroup>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QJsonDocument>
@@ -424,10 +425,6 @@ TitleBar::TitleBar(QWidget* parent)
     m_txMuteBtn->setAccessibleName("TX Mute");
     m_txMuteBtn->setAccessibleDescription(
         "Mute all of the computer's audio output while this radio transmits");
-    m_txMuteBtn->setToolTip(
-        "TX Mute — when on, the Mac's sound output is muted while this radio\n"
-        "transmits and restored when it returns to receive. Mutes everything,\n"
-        "including other AetherSDR windows.");
     applyTxMuteStyle();
     connect(m_txMuteBtn, &QPushButton::toggled, this, [this](bool on) {
         applyTxMuteStyle();
@@ -436,6 +433,31 @@ TitleBar::TitleBar(QWidget* parent)
         ss.save();
         emit txMuteToggled(on);
     });
+    // Right-click: how long the mute holds after TX ends.
+    m_txMuteBtn->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_txMuteBtn, &QWidget::customContextMenuRequested,
+            this, [this](const QPoint& pos) {
+        QMenu* menu = new QMenu(this);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+        menu->addSection(QStringLiteral("Unmute delay after TX"));
+        auto* group = new QActionGroup(menu);
+        const int current = txMuteTailMs();
+        for (int ms : {100, 200, 300, 500, 750, 1000, 1500, 2000, 2500}) {
+            QAction* a = menu->addAction(QStringLiteral("%1 s").arg(ms / 1000.0, 0, 'f', ms % 100 ? 2 : 1));
+            a->setCheckable(true);
+            a->setChecked(ms == current);
+            group->addAction(a);
+            connect(a, &QAction::triggered, this, [this, ms] {
+                auto& ss = AppSettings::instance();
+                ss.setValue("MuteSystemOnTxTailMs", QString::number(ms));
+                ss.save();
+                updateTxMuteToolTip();
+                emit txMuteTailChanged(ms);
+            });
+        }
+        menu->popup(m_txMuteBtn->mapToGlobal(pos));
+    });
+    updateTxMuteToolTip();
     audio->addWidget(m_txMuteBtn);
     m_txMuteBtn->setVisible(SystemOutputMute::isSupported());
 
@@ -1243,6 +1265,26 @@ void TitleBar::setTxMuteArmed(bool armed)
     QSignalBlocker block(m_txMuteBtn);
     m_txMuteBtn->setChecked(armed);
     applyTxMuteStyle();
+}
+
+int TitleBar::txMuteTailMs()
+{
+    return qBound(SystemOutputMute::kMinTailMs,
+                  AppSettings::instance()
+                      .value("MuteSystemOnTxTailMs",
+                             QString::number(SystemOutputMute::kDefaultTailMs))
+                      .toInt(),
+                  SystemOutputMute::kMaxTailMs);
+}
+
+void TitleBar::updateTxMuteToolTip()
+{
+    m_txMuteBtn->setToolTip(QStringLiteral(
+        "TX Mute — when on, the Mac's sound output is muted while this radio\n"
+        "transmits and restored %1 s after it returns to receive. Mutes\n"
+        "everything, including other AetherSDR windows.\n"
+        "Right-click to change the unmute delay.")
+        .arg(txMuteTailMs() / 1000.0, 0, 'f', txMuteTailMs() % 100 ? 2 : 1));
 }
 
 void TitleBar::setTxMuteEngaged(bool engaged)
