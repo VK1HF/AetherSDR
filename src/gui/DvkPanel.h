@@ -10,9 +10,11 @@
 
 class QFrame;
 class QShortcut;
+class QSpinBox;
 
 namespace AetherSDR {
 class VoiceKeyer;
+class VoiceKeyerLoop;
 
 class DvkPanel : public QWidget {
     Q_OBJECT
@@ -37,6 +39,10 @@ public:
     // survives the swap. MainWindow defers this while a keyer is busy.
     void setKeyer(VoiceKeyer* keyer);
     VoiceKeyer* keyer() const { return m_model; }
+
+    // The on-air loop (LOOP button). MainWindow feeds it the radio's TX and
+    // TUNE state, which end it, and persists its pause setting.
+    VoiceKeyerLoop* loop() const { return m_loop; }
 
     // Enable/disable the F1-F12 and Esc ApplicationShortcuts. Driven by
     // the active slice's mode in MainWindow so the keys fire regardless
@@ -81,6 +87,11 @@ private:
     QPushButton* m_stopBtn;
     QPushButton* m_playBtn;
     QPushButton* m_prevBtn;
+    QPushButton* m_loopBtn{nullptr};
+    QSpinBox* m_loopGapSpin{nullptr};
+    VoiceKeyerLoop* m_loop{nullptr};
+    // Counts down the pause between loops on the status line.
+    QTimer* m_loopTimer{nullptr};
     // The title carries the keyer's source ("(Radio)" / "(Local)") so the
     // operator can always see which keyer the panel drives.
     QLabel* m_titleLabel{nullptr};
@@ -122,6 +133,10 @@ private:
     void refreshTransport();
     void togglePlayback(int id);
     void stopActiveOperation();
+    void toggleLoop(bool on);
+    void onLoopPhaseChanged();
+    // The status line during a loop's pause, in place of "Idle".
+    QString loopWaitingText() const;
     void showContextMenu(int id, const QPoint& globalPos);
     void startRename(int id);
     void commitRename();

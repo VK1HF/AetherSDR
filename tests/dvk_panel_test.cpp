@@ -368,6 +368,44 @@ int main(int argc, char** argv)
                     .arg(joined(first.calls).c_str(), joined(other.calls).c_str())).toStdString());
     }
 
+    {
+        // LOOP: plays the selected slot, latches on, and any F-key or STOP
+        // ends it (stopping the play in flight).
+        FakeKeyer k;
+        k.addRecording(1, QStringLiteral("CQ"), 2000);
+        DvkPanel loopPanel(&k);
+        auto* loopBtn = loopPanel.findChild<QPushButton*>(QStringLiteral("dvkLoop"));
+        auto* f1 = loopPanel.findChild<QPushButton*>(QStringLiteral("dvkPlaySlot1"));
+        auto* stop = loopPanel.findChild<QPushButton*>(QStringLiteral("dvkStop"));
+        report("loop_button_exists_and_keys_tx", loopBtn && loopBtn->property(kTxKeyingProperty).toBool());
+        if (loopBtn && f1 && stop) {
+            loopBtn->click();
+            report("loop_plays_the_selected_slot",
+                   k.calls == QStringList{"playbackStart 1"} && loopBtn->isChecked(),
+                   joined(k.calls));
+            k.pushStatus(VoiceKeyer::Playback, 1);
+            k.calls.clear();
+            f1->click();
+            report("fkey_during_loop_stops_it",
+                   k.calls == QStringList{"playbackStop 1"} && !loopBtn->isChecked(),
+                   joined(k.calls));
+            k.pushStatus(VoiceKeyer::Idle, -1);
+            k.calls.clear();
+            loopBtn->click();
+            k.pushStatus(VoiceKeyer::Playback, 1);
+            k.calls.clear();
+            stop->click();
+            report("stop_during_loop_stops_it",
+                   k.calls == QStringList{"playbackStop 1"} && !loopBtn->isChecked(),
+                   joined(k.calls));
+        }
+        k.pushStatus(VoiceKeyer::Idle, -1);
+        FakeKeyer empty;
+        DvkPanel emptyPanel(&empty);
+        auto* emptyLoop = emptyPanel.findChild<QPushButton*>(QStringLiteral("dvkLoop"));
+        report("loop_disabled_on_an_empty_slot", emptyLoop && !emptyLoop->isEnabled());
+    }
+
     std::printf("\n%s (%d failed)\n", g_failed ? "FAILED" : "PASSED", g_failed);
     return g_failed ? 1 : 0;
 }

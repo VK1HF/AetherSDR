@@ -139,6 +139,8 @@
 #include "CwxPanel.h"
 #include "DvkAvailabilityGate.h"
 #include "models/VoiceKeyerController.h"
+#include "models/VoiceKeyerLoop.h"
+#include "core/VoiceKeyerSettings.h"
 #include "VoiceModeGate.h"
 #include "DvkPanel.h"
 #include "StatusIndicator.h"
@@ -5599,6 +5601,21 @@ void MainWindow::buildUI()
     splitter->addWidget(m_dvkPanel);
     applyVoiceKeyerSource();  // Local may already be the saved choice
     m_dvkPanel->hide();
+    {
+        // LOOP: the operator transmitting or tuning ends the loop at once, and
+        // its pause between plays persists with the rest of the keyer settings.
+        auto* loop = m_dvkPanel->loop();
+        if (const int gap = VoiceKeyerSettings::loopGapSeconds(); gap > 0)
+            loop->setGapSeconds(gap);
+        connect(loop, &VoiceKeyerLoop::gapSecondsChanged, this,
+                [](int seconds) { VoiceKeyerSettings::setLoopGapSeconds(seconds); });
+        auto& tx = m_radioModel.transmitModel();
+        connect(&tx, &TransmitModel::transmittingChanged, loop,
+                &VoiceKeyerLoop::onTransmittingChanged);
+        connect(&tx, &TransmitModel::tuneChanged, loop, &VoiceKeyerLoop::onTuneChanged);
+        connect(&tx, &TransmitModel::tuneCommandIssued, loop, &VoiceKeyerLoop::onTuneChanged);
+        loop->onTransmittingChanged(tx.isTransmitting());
+    }
 
     // Centre — panadapter stack (one or more FFT + waterfall panes)
     m_panStack = new PanadapterStack(splitter);

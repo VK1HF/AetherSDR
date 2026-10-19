@@ -11,6 +11,7 @@ namespace {
 const QString kVoiceKeyerKey = QStringLiteral("VoiceKeyer");
 const QString kSourceField   = QStringLiteral("source");
 const QString kSlotsField    = QStringLiteral("slots");
+const QString kLoopGapField  = QStringLiteral("loopGapSeconds");
 } // namespace
 
 QJsonObject VoiceKeyerSettings::readObj()
@@ -67,6 +68,18 @@ void VoiceKeyerSettings::setSlotName(int id, const QString& name)
     else
         slotMap[key] = slot;
     o[kSlotsField] = slotMap;
+    write(o);
+}
+
+int VoiceKeyerSettings::loopGapSeconds()
+{
+    return readObj().value(kLoopGapField).toInt(0);
+}
+
+void VoiceKeyerSettings::setLoopGapSeconds(int seconds)
+{
+    QJsonObject o = readObj();
+    o[kLoopGapField] = seconds;
     write(o);
 }
 

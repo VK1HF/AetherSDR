@@ -1280,6 +1280,7 @@ set(MODEL_SOURCES
     src/models/CwxModel.cpp
     src/models/DvkModel.cpp
     src/models/VoiceKeyer.cpp
+    src/models/VoiceKeyerLoop.cpp
     src/models/LocalVoiceKeyer.cpp
     src/models/VoiceKeyerController.cpp
     src/models/NavtexModel.cpp
