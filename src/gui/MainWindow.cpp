@@ -5491,6 +5491,9 @@ void MainWindow::buildUI()
 {
     // ── Title bar + central splitter ─────────────────────────────────────────
     m_titleBar = new TitleBar(this);
+#ifdef Q_OS_MACOS
+    mac::relayRightClicks(m_titleBar);   // past the unified toolbar's own menu
+#endif
     // Embed the menu bar into the title bar (left side)
     m_titleBar->setMenuBar(menuBar());
     updatePcAudioTooltip();

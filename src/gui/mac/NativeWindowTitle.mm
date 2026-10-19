@@ -1,5 +1,8 @@
 #include "NativeWindowTitle.h"
 
+#include <QApplication>
+#include <QCursor>
+#include <QPointer>
 #include <QWidget>
 #include <QGuiApplication>
 #import <AppKit/AppKit.h>
@@ -43,6 +46,35 @@ void updateNativeTitleVisibility(QWidget* window)
         native.toolbar = nil;
         native.toolbarStyle = previousStyle;
     }
+}
+
+void relayRightClicks(QWidget* area)
+{
+    QPointer<QWidget> guard(area);
+    // A local monitor sees the event in -[NSApplication sendEvent:], before the
+    // window routes it to the toolbar. It lives as long as the app; the guard
+    // makes it inert once the title bar is gone.
+    [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskRightMouseDown
+                                          handler:^NSEvent*(NSEvent* event) {
+        if (!guard || !guard->isVisible()) {
+            return event;
+        }
+        const QPoint global = QCursor::pos();
+        QWidget* hit = QApplication::widgetAt(global);
+        if (!hit || (hit != guard && !guard->isAncestorOf(hit))) {
+            return event;
+        }
+        for (QWidget* w = hit; w; w = w->parentWidget()) {
+            if (w->contextMenuPolicy() == Qt::CustomContextMenu) {
+                emit w->customContextMenuRequested(w->mapFromGlobal(global));
+                return nil;   // handled; the toolbar menu does not open
+            }
+            if (w == guard) {
+                break;
+            }
+        }
+        return event;
+    }];
 }
 
 QRectF nativeCaptionBounds(const QWidget* window)
