@@ -63,6 +63,8 @@ public:
     void setTxMuteEngaged(bool engaged);
     // The saved unmute delay after TX, in ms (right-click on TX Mute).
     static int txMuteTailMs();
+    // The delay choices, for the button's right-click and the Settings menu.
+    void addTxMuteTailChoices(QMenu* menu);
     // Lock PC audio on. A host-modulating backend (HL2) plays and captures all
     // of its audio locally, so turning PC audio off leaves the operator deaf and
     // mute with no indication why — there is no radio-side audio path to fall

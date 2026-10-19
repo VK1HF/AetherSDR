@@ -440,21 +440,7 @@ TitleBar::TitleBar(QWidget* parent)
         QMenu* menu = new QMenu(this);
         menu->setAttribute(Qt::WA_DeleteOnClose);
         menu->addSection(QStringLiteral("Unmute delay after TX"));
-        auto* group = new QActionGroup(menu);
-        const int current = txMuteTailMs();
-        for (int ms : {100, 200, 300, 500, 750, 1000, 1500, 2000, 2500}) {
-            QAction* a = menu->addAction(QStringLiteral("%1 s").arg(ms / 1000.0, 0, 'f', ms % 100 ? 2 : 1));
-            a->setCheckable(true);
-            a->setChecked(ms == current);
-            group->addAction(a);
-            connect(a, &QAction::triggered, this, [this, ms] {
-                auto& ss = AppSettings::instance();
-                ss.setValue("MuteSystemOnTxTailMs", QString::number(ms));
-                ss.save();
-                updateTxMuteToolTip();
-                emit txMuteTailChanged(ms);
-            });
-        }
+        addTxMuteTailChoices(menu);
         menu->popup(m_txMuteBtn->mapToGlobal(pos));
     });
     updateTxMuteToolTip();
@@ -1265,6 +1251,26 @@ void TitleBar::setTxMuteArmed(bool armed)
     QSignalBlocker block(m_txMuteBtn);
     m_txMuteBtn->setChecked(armed);
     applyTxMuteStyle();
+}
+
+void TitleBar::addTxMuteTailChoices(QMenu* menu)
+{
+    auto* group = new QActionGroup(menu);
+    const int current = txMuteTailMs();
+    for (int ms : {100, 200, 300, 500, 750, 1000, 1500, 2000, 2500}) {
+        QAction* a = menu->addAction(
+            QStringLiteral("%1 s").arg(ms / 1000.0, 0, 'f', ms % 100 ? 2 : 1));
+        a->setCheckable(true);
+        a->setChecked(ms == current);
+        group->addAction(a);
+        connect(a, &QAction::triggered, this, [this, ms] {
+            auto& ss = AppSettings::instance();
+            ss.setValue("MuteSystemOnTxTailMs", QString::number(ms));
+            ss.save();
+            updateTxMuteToolTip();
+            emit txMuteTailChanged(ms);
+        });
+    }
 }
 
 int TitleBar::txMuteTailMs()
