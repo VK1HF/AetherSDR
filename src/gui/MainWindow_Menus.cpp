@@ -40,6 +40,7 @@
 #include "SpectrumWidget.h"
 #include "SupportDialog.h"
 #include "TitleBar.h"
+#include "core/TxLinkPeer.h"
 #include "UpdatesWindow.h"
 #include "core/SystemOutputMute.h"
 #include "MidiMappingDialog.h"
@@ -377,6 +378,18 @@ void MainWindow::buildMenuBar()
             m_titleBar->addTxMuteTailChoices(txMuteDelay);
         });
     }
+    // Several windows on one Mac key together: a MOX in any of them keys all
+    // of them. Off by default; each radio still runs its own TX checks.
+    auto* txLinkAct = settingsMenu->addAction("Link TX With Other AetherSDR Windows");
+    txLinkAct->setCheckable(true);
+    txLinkAct->setChecked(AppSettings::instance().value("TxLinkEnabled", "False").toString() == "True");
+    txLinkAct->setToolTip(QStringLiteral("A MOX in any linked window keys every linked radio. "
+                                         "Each radio still needs its own voice audio."));
+    connect(txLinkAct, &QAction::toggled, this, [this](bool on) {
+        AppSettings::instance().setValue("TxLinkEnabled", on ? "True" : "False");
+        AppSettings::instance().save();
+        m_txLink->setEnabled(on);
+    });
 
     auto* voiceKeyerSourceAct = settingsMenu->addAction("Voice Keyer Source...");
     connect(voiceKeyerSourceAct, &QAction::triggered, this, [this] {

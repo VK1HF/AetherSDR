@@ -10830,3 +10830,13 @@ add_executable(voice_keyer_loop_test
 target_include_directories(voice_keyer_loop_test PRIVATE src)
 target_link_libraries(voice_keyer_loop_test PRIVATE Qt6::Core)
 add_test(NAME voice_keyer_loop_test COMMAND voice_keyer_loop_test)
+
+# TX link: windows on one Mac key together; a lost link fails closed.
+add_executable(tx_link_test
+    tests/tx_link_test.cpp
+    src/core/TxLinkPeer.cpp
+    src/core/TxLinkPeer.h
+)
+target_include_directories(tx_link_test PRIVATE src)
+target_link_libraries(tx_link_test PRIVATE Qt6::Core Qt6::Network)
+add_test(NAME tx_link_test COMMAND tx_link_test)

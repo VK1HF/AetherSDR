@@ -76,8 +76,18 @@ public slots:
     // TransmitModel::transmittingChanged and tuneChanged.
     void onTransmittingChanged(bool tx);
     void onTuneChanged(bool tuning);
+    // Linked windows: another window keyed (any means). Ends a loop that is
+    // waiting for its next play; a key during a play is that window's own
+    // transmission of the same recording.
+    void onRemoteTransmitting(bool tx);
+    // Linked windows: another window could not play the slot. Ends the loop.
+    void onRemoteFault(const QString& reason);
 
 signals:
+    // Each play this loop starts, and the stop that ends it, so the linked
+    // windows can play the same slot in step.
+    void playStarted(int slot);
+    void playStopped();
     void phaseChanged(AetherSDR::VoiceKeyerLoop::Phase phase, int slot);
     void gapSecondsChanged(int seconds);
     // The loop ended on its own (not by stop() with an empty reason).

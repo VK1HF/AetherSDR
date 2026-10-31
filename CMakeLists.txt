@@ -1011,6 +1011,7 @@ set(CORE_SOURCES
     src/core/ClientReverb.cpp
     src/core/ClientDelay.cpp
     src/core/SystemOutputMute.cpp
+    src/core/TxLinkPeer.cpp
     src/core/ClientPhaseRotator.cpp
     src/core/ClientFinalLimiter.cpp
     src/core/ClientTxTestTone.cpp

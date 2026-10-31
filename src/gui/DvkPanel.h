@@ -43,6 +43,10 @@ public:
     // The on-air loop (LOOP button). MainWindow feeds it the radio's TX and
     // TUNE state, which end it, and persists its pause setting.
     VoiceKeyerLoop* loop() const { return m_loop; }
+    // Linked windows: another window's loop asks this radio to play a slot,
+    // and to end it. Returns false when this keyer cannot take the play.
+    bool followLinkedPlay(int slot);
+    void endLinkedPlay();
 
     // Enable/disable the F1-F12 and Esc ApplicationShortcuts. Driven by
     // the active slice's mode in MainWindow so the keys fire regardless
@@ -90,6 +94,8 @@ private:
     QPushButton* m_loopBtn{nullptr};
     QSpinBox* m_loopGapSpin{nullptr};
     VoiceKeyerLoop* m_loop{nullptr};
+    // The slot this radio is playing for a linked window's loop, or -1.
+    int m_linkedSlot{-1};
     // Counts down the pause between loops on the status line.
     QTimer* m_loopTimer{nullptr};
     // The title carries the keyer's source ("(Radio)" / "(Local)") so the
@@ -134,6 +140,7 @@ private:
     void togglePlayback(int id);
     void stopActiveOperation();
     void toggleLoop(bool on);
+    bool linkedPlayOnAir() const;
     void onLoopPhaseChanged();
     // The status line during a loop's pause, in place of "Idle".
     QString loopWaitingText() const;

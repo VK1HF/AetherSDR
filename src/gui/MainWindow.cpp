@@ -32,6 +32,7 @@
 #include "ClientDisconnectDialog.h"
 #include "ConnectedStationsDialog.h"
 #include "TitleBar.h"
+#include "core/TxLinkPeer.h"
 #include "UpdatesWindow.h"
 #include "core/UpdateController.h"
 #include "core/SystemOutputMute.h"
@@ -1918,6 +1919,58 @@ MainWindow::MainWindow(QWidget* parent)
         connect(&m_radioModel.transmitModel(), &TransmitModel::tuneChanged,
                 this, updateTxMute);
     }
+    // Link TX with other AetherSDR windows (Settings menu, off by default).
+    // Only the operator's MOX is linked: a key from TUNE, a voice keyer or CW
+    // stays on this window's radio, which would carry no audio for it.
+    m_txLink = new TxLinkPeer(QStringLiteral("AetherSDR-TxLink"), this);
+    m_txLink->setKeyHandler([this](bool on) {
+        auto& tx = m_radioModel.transmitModel();
+        if (on)
+            tx.requestPttOn(TransmitModel::PttSource::Mox);
+        else
+            tx.requestPttOff(TransmitModel::PttSource::Mox);
+    });
+    m_txLink->setEnabled(
+        AppSettings::instance().value("TxLinkEnabled", "False").toString() == "True");
+
+    // transmittingChanged, not moxCommandIssued: the MOX button keys through
+    // RadioModel's producer path, which reports the key only as a
+    // transmittingChanged edge.
+    connect(&m_radioModel.transmitModel(), &TransmitModel::transmittingChanged, this,
+            [this](bool on) {
+        // A key on the link is the operator's MOX; a key from another source
+        // is not linked, so only an off reaches the link for those.
+        const auto& tx = m_radioModel.transmitModel();
+        if (!on || tx.activePttSource() == TransmitModel::PttSource::Mox)
+            m_txLink->onLocalKey(on);
+    });
+
+    // DVK loop over the TX link: play and stop from a linked window's loop, a
+    // fault from a window that could not play the slot, and every window's
+    // transmit state, so that a key on any radio ends a loop that is waiting.
+    connect(m_txLink, &TxLinkPeer::dvkReceived, this, [this](const QJsonObject& msg) {
+        if (!m_dvkPanel)
+            return;
+        if (msg.contains(QStringLiteral("play"))) {
+            const int slot = msg.value(QStringLiteral("play")).toInt();
+            if (!m_dvkPanel->followLinkedPlay(slot)) {
+                m_txLink->sendDvk(QJsonObject{{QStringLiteral("fault"),
+                    QStringLiteral("Loop stopped: a linked radio could not play slot %1.").arg(slot)}});
+            }
+        } else if (msg.contains(QStringLiteral("stop"))) {
+            m_dvkPanel->endLinkedPlay();
+        } else if (msg.contains(QStringLiteral("fault"))) {
+            m_dvkPanel->loop()->onRemoteFault(msg.value(QStringLiteral("fault")).toString());
+        }
+    });
+    connect(m_txLink, &TxLinkPeer::remoteTxChanged, this, [this](bool on) {
+        if (m_dvkPanel)
+            m_dvkPanel->loop()->onRemoteTransmitting(on);
+    });
+    connect(&m_radioModel.transmitModel(), &TransmitModel::transmittingChanged, this, [this](bool on) {
+        if (m_txLink)
+            m_txLink->sendTx(on);
+    });
 
     // ── Title bar: PC Audio, master volume, headphone volume ────────────────
     // The remote_audio_rx stream controls the radio's audio routing:
@@ -5604,6 +5657,16 @@ void MainWindow::buildUI()
         return transfer && transfer->isBusy();
     });
     m_dvkPanel = new DvkPanel(m_voiceKeyer->bound(), splitter);
+    // DVK loop over the TX link: the window that starts a loop drives it, and
+    // every linked window plays the same slot from its own copy of the WAV.
+    connect(m_dvkPanel->loop(), &VoiceKeyerLoop::playStarted, this, [this](int slot) {
+        if (m_txLink)
+            m_txLink->sendDvk(QJsonObject{{QStringLiteral("play"), slot}});
+    });
+    connect(m_dvkPanel->loop(), &VoiceKeyerLoop::playStopped, this, [this] {
+        if (m_txLink)
+            m_txLink->sendDvk(QJsonObject{{QStringLiteral("stop"), true}});
+    });
     splitter->addWidget(m_dvkPanel);
     applyVoiceKeyerSource();  // Local may already be the saved choice
     m_dvkPanel->hide();
