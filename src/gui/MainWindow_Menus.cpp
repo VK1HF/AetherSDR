@@ -1625,6 +1625,11 @@ void MainWindow::buildMenuBar()
         updateToolsMenuState();
     });
 
+    auto* audioChainAction = toolsMenu->addAction("Audio Chain Visualizer...");
+    audioChainAction->setMenuRole(QAction::NoRole);
+    connect(audioChainAction, &QAction::triggered,
+            this, &MainWindow::showAudioChainVisualizer);
+
     auto* cwKeyerAction = toolsMenu->addAction("CW Keyer");
     m_cwKeyerAction = cwKeyerAction;
     cwKeyerAction->setCheckable(true);

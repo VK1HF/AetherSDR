@@ -8,6 +8,7 @@
 
 #include "AetherDspWidget.h"
 #include "AppletPanel.h"
+#include "AudioChainVisualizer.h"
 #include "AetherialAudioStrip.h"
 #include "ClientCompApplet.h"
 #include "ClientCompEditor.h"
@@ -26,18 +27,30 @@
 #include "PhoneApplet.h"
 #include "PhoneCwApplet.h"
 #include "TitleBar.h"
+#include "WindowShowState.h"
 #include "ClientChainApplet.h"
 #include "MainWindowHelpers.h"
 #include "core/AetherDspModePolicy.h"
 #include "core/AppSettings.h"
 #include "core/AudioEngine.h"
 #include "core/ClientComp.h"
+#include "core/ClientDeEss.h"
 #include "core/ClientEq.h"
+#include "core/ClientFinalLimiter.h"
+#include "core/ClientGate.h"
+#include "core/ClientPudu.h"
+#include "core/ClientQuindarTone.h"
+#include "core/ClientReverb.h"
+#include "core/ClientTube.h"
 #include "core/HostVoiceChainPolicy.h"
 #include "core/LogManager.h"
+#include "models/EqualizerModel.h"
+#include "models/MeterModel.h"
 #include "models/RadioModel.h"
+#include "models/TransmitModel.h"
 #include "models/SliceModel.h"
 
+#include <QAudioDevice>
 #include <QTimer>
 #include <QMessageBox>
 
@@ -1090,6 +1103,117 @@ void MainWindow::wireHostModulatedVoiceChain()
         m_radioModel.transmitModel().applySpeechProcessorState(
             comp->isEnabled(), m_radioModel.transmitModel().speechProcessorLevel());
     });
+}
+
+
+namespace {
+
+// The AetherTX stages as the CHAIN widget labels them, with their on state.
+AudioChainSnapshot::Stage aetherTxStage(AudioEngine& audio, AudioEngine::TxChainStage stage)
+{
+    switch (stage) {
+        case AudioEngine::TxChainStage::Gate:
+            return {QStringLiteral("GATE"), audio.clientGateTx() && audio.clientGateTx()->isEnabled()};
+        case AudioEngine::TxChainStage::Eq:
+            return {QStringLiteral("EQ"), audio.clientEqTx() && audio.clientEqTx()->isEnabled()};
+        case AudioEngine::TxChainStage::DeEss:
+            return {QStringLiteral("DESS"), audio.clientDeEssTx() && audio.clientDeEssTx()->isEnabled()};
+        case AudioEngine::TxChainStage::Comp:
+            return {QStringLiteral("COMP"), audio.clientCompTx() && audio.clientCompTx()->isEnabled()};
+        case AudioEngine::TxChainStage::Tube:
+            return {QStringLiteral("TUBE"), audio.clientTubeTx() && audio.clientTubeTx()->isEnabled()};
+        case AudioEngine::TxChainStage::Enh:
+            return {QStringLiteral("EVO"), audio.clientPuduTx() && audio.clientPuduTx()->isEnabled()};
+        case AudioEngine::TxChainStage::Reverb:
+            return {QStringLiteral("VERB"), audio.clientReverbTx() && audio.clientReverbTx()->isEnabled()};
+        case AudioEngine::TxChainStage::None:
+            break;
+    }
+    return {};
+}
+
+} // namespace
+
+void MainWindow::showAudioChainVisualizer()
+{
+    if (!m_audioChainVisualizer) {
+        auto* window = new AudioChainVisualizer(this);
+        window->setAttribute(Qt::WA_DeleteOnClose);
+        m_audioChainVisualizer = window;
+
+        connect(window, &AudioChainVisualizer::micSourceRequested, this,
+                [this](const QString& source) {
+            m_radioModel.transmitModel().setMicSelection(source);
+        });
+        connect(window, &AudioChainVisualizer::aetherTxRequested, this, [this] {
+            if (windowIsShowing(m_aetherialStrip)) {
+                m_aetherialStrip->raise();
+                m_aetherialStrip->activateWindow();
+                return;
+            }
+            toggleAetherialStrip();
+            updateToolsMenuState();
+        });
+        connect(m_audio, &AudioEngine::pcMicLevelChanged, window,
+                [window](float peakDbfs, float) { window->setPcOutputLevel(peakDbfs); });
+
+        window->setSnapshotProvider([this] {
+            AudioChainSnapshot s;
+            const TransmitModel& tx = m_radioModel.transmitModel();
+            s.connected = m_radioModel.isConnected();
+            s.micSource = tx.micSelection();
+            s.micSources = tx.micInputList();
+            if (!s.micSources.contains(s.micSource) && !s.micSource.isEmpty()) {
+                s.micSources.prepend(s.micSource);
+            }
+            s.daxTx = tx.daxOn();
+            s.transmitting = tx.isTransmitting();
+            s.radioMicLevel = tx.micLevel();
+            s.procOn = tx.speechProcessorEnable();
+            s.procLevel = tx.speechProcessorLevel();
+            s.procMaximum = tx.speechProcessorLevelMaximum();
+            s.txFilterLowHz = tx.txFilterLow();
+            s.txFilterHighHz = tx.txFilterHigh();
+            s.rfPowerPercent = tx.rfPower();
+            s.pcLevelPercent = AppSettings::instance().value("PcMicGain", 100).toInt();
+
+            const EqualizerModel& eq = m_radioModel.equalizerModel();
+            s.txEqOn = eq.txEnabled();
+            for (int b = 0; b < EqualizerModel::BandCount; ++b) {
+                s.txEqBands[static_cast<size_t>(b)] = eq.txBand(static_cast<EqualizerModel::Band>(b));
+            }
+
+            const MeterModel& meters = m_radioModel.meterModel();
+            if (meters.hasMicLevelMeter()) {
+                s.radioMicDbfs = meters.micLevel();
+            }
+            if (meters.hasCompressionMeterValue()) {
+                s.compressionDb = meters.compPeak();
+            }
+            s.alcValue = meters.alcValue();
+            s.alcUnit = meters.alcUnit();
+            s.forwardWatts = meters.fwdPower();
+
+            if (m_audio) {
+                const QString device = m_audio->inputDevice().description().trimmed();
+                s.pcInputDevice = device;
+                s.aetherTxBypass = m_audio->isTxBypassed();
+                s.aetherTxStages.append({QStringLiteral("RN2"), m_audio->rn2TxEnabled()});
+                for (AudioEngine::TxChainStage stage : m_audio->txChainStages()) {
+                    AudioChainSnapshot::Stage entry = aetherTxStage(*m_audio, stage);
+                    if (!entry.label.isEmpty()) {
+                        s.aetherTxStages.append(entry);
+                    }
+                }
+                s.quindarOn = m_audio->clientQuindarTone() && m_audio->clientQuindarTone()->isEnabled();
+                s.limiterOn = m_audio->clientFinalLimiterTx() && m_audio->clientFinalLimiterTx()->isEnabled();
+            }
+            return s;
+        });
+    }
+    m_audioChainVisualizer->show();
+    m_audioChainVisualizer->raise();
+    m_audioChainVisualizer->activateWindow();
 }
 
 } // namespace AetherSDR
