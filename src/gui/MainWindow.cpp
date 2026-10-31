@@ -96,6 +96,7 @@
 #include "ClientPuduEditor.h"
 #include "ClientReverbApplet.h"
 #include "AetherialAudioStrip.h"
+#include "AudioChainVisualizer.h"
 #include "StripFinalOutputPanel.h"
 #include "ClientChainApplet.h"
 #include "core/ClientComp.h"
@@ -2663,6 +2664,11 @@ MainWindow::~MainWindow()
     }
     delete m_networkDiagnosticsHistory;
     m_networkDiagnosticsHistory = nullptr;
+    // The visualizer reads AudioEngine on its refresh tick; same reason.
+    if (m_audioChainVisualizer) {
+        delete m_audioChainVisualizer.data();
+        m_audioChainVisualizer = nullptr;
+    }
 
     // Ax25HfPacketDecodeDialog::~Ax25HfPacketDecodeDialog calls
     // m_audio->setTncRxTapEnabled(false) via a raw AudioEngine pointer.

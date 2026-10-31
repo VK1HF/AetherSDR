@@ -172,6 +172,7 @@ class SettingsBrowserDialog;
 class ProfileImportExportDialog;
 class RadioSetupDialog;
 class NetworkDiagnosticsDialog;
+class AudioChainVisualizer;
 class SystemInfoDialog;
 class AgcCalibrationDialog;
 class MemoryDialog;
@@ -1122,6 +1123,7 @@ private:
     void showPanadapterSliceCapacityMessage();
     void updatePaTempLabel();
     void showNetworkDiagnosticsDialog();
+    void showAudioChainVisualizer();
     void showSystemInfoDialog();
     void showAgcCalibrationDialog(int sliceId);
     void showAx25HfPacketDecodeDialog();
@@ -1742,6 +1744,7 @@ private:
     QString m_lastCwContactCall;
     QPointer<RadioSetupDialog> m_radioSetupDialog;
     QPointer<NetworkDiagnosticsDialog> m_networkDiagnosticsDialog;
+    QPointer<AudioChainVisualizer> m_audioChainVisualizer;
     QPointer<SystemInfoDialog> m_systemInfoDialog;
     QPointer<AgcCalibrationDialog> m_agcCalibrationDialog;
     QPointer<PropDashboardDialog> m_propDashboardDialog;

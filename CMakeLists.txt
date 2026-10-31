@@ -1371,6 +1371,7 @@ set(GUI_SOURCES
     src/gui/RtlReceiverSettingsWidget.cpp
     src/gui/RadioSetupDialog_Peripherals.cpp
     src/gui/NetworkDiagnosticsDialog.cpp
+    src/gui/AudioChainVisualizer.cpp
     src/gui/SystemInfoDialog.cpp
     src/gui/Ax25HfPacketDecodeDialog.cpp
     src/gui/AprsRateGraph.cpp
