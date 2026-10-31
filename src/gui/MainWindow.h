@@ -529,6 +529,9 @@ private:
     // filter to the linked windows, and apply one that arrives.
     void copySliceToLinkedWindows(int sliceId);
     void applySliceCopy(const QJsonObject& payload);
+    // Save or load one equalizer (RX or TX) to its own file.
+    void saveEqualizerFile(bool rx);
+    void loadEqualizerFile(bool rx);
     // Shared band selection for overlay band buttons and band_* shortcut/MIDI
     // actions (#4543). Flex: sends a band-stack recall (display pan set <panId>
     // band=<key>) and the radio restores freq/mode/filters/antenna; freqMhz/mode

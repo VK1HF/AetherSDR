@@ -997,6 +997,8 @@ set(CORE_SOURCES
     src/core/TxMicChannelNormalizer.cpp
     src/core/TxVoiceProcessor.cpp
     src/core/ChannelStripPresets.cpp
+    src/core/EqPresetFile.cpp
+    src/core/EqPresetFormat.cpp
     src/core/AetherRxProfiles.cpp
     src/core/AetherTxProfiles.cpp
     src/core/Biquad.cpp

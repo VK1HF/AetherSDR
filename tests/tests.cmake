@@ -10840,3 +10840,12 @@ add_executable(tx_link_test
 target_include_directories(tx_link_test PRIVATE src)
 target_link_libraries(tx_link_test PRIVATE Qt6::Core Qt6::Network)
 add_test(NAME tx_link_test COMMAND tx_link_test)
+# EQ-only save and load: the RX and TX equalizers each keep their own file.
+add_executable(eq_preset_file_test
+    tests/eq_preset_file_test.cpp
+    src/core/EqPresetFormat.cpp
+    src/core/EqPresetFile.h
+)
+target_include_directories(eq_preset_file_test PRIVATE src)
+target_link_libraries(eq_preset_file_test PRIVATE Qt6::Core)
+add_test(NAME eq_preset_file_test COMMAND eq_preset_file_test)
