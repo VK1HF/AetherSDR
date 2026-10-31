@@ -336,6 +336,9 @@ Q_SIGNALS:
     void aetherVoiceRequested();   // user clicked the AetherVoice button on the DSP tab
     void splitToggled();
     void swapRequested();
+    // The sync button: copy this slice's frequency and mode to the same
+    // slice on the other linked windows.
+    void copyRequested();
     // Right-click on the SPLIT/SWAP badge. The menu itself is built by
     // MainWindow, which owns the split pair and the remembered arrangement;
     // this widget only reports where the operator clicked. (#2242, #311)
@@ -365,6 +368,10 @@ Q_SIGNALS:
     // SpectrumWidget connects this to markOverlayDirty() so the spectrum overlay
     // (which draws the labels) refreshes. Throttled at the source.
     void smartMtrLabelsChanged();
+
+public:
+    // Enables the copy button only when another linked window can take it.
+    void setCopyAvailable(bool available);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -496,6 +503,8 @@ private:
 
     // Frequency / meter
     QLabel* m_freqLabel{nullptr};
+    QPushButton* m_copyBtn{nullptr};
+    void updateCopyTooltip();
     QLabel* m_captureStatusLabel{nullptr};
     QLineEdit* m_freqEdit{nullptr};
     QStackedWidget* m_freqStack{nullptr};
