@@ -241,6 +241,51 @@ int main(int argc, char** argv)
         report("a keyer swap ends the loop", !loop.isActive() && a.calls.last() == "stop 1");
     }
 
+    {
+        // Linked windows: each play and stop is reported, so a linked radio can follow.
+        FakeKeyer k;
+        VoiceKeyerLoop loop(&k, kFast);
+        int starts = 0;
+        int stops = 0;
+        QObject::connect(&loop, &VoiceKeyerLoop::playStarted, [&](int) { ++starts; });
+        QObject::connect(&loop, &VoiceKeyerLoop::playStopped, [&] { ++stops; });
+        loop.start(1);
+        loop.stop();
+        report("each play start and the stop are reported", starts == 1 && stops == 1,
+               QString("starts %1 stops %2").arg(starts).arg(stops).toStdString());
+    }
+
+    {
+        // A linked window keying during the pause ends the loop; during a play
+        // it is the same recording on another radio, so the loop carries on.
+        FakeKeyer k;
+        VoiceKeyerLoop loop(&k, kFast);
+        loop.setGapSeconds(3);
+        loop.start(1);
+        k.push(VoiceKeyer::Playback, 1);
+        loop.onRemoteTransmitting(true);
+        report("a linked key during a play is not a stop", loop.phase() == VoiceKeyerLoop::Phase::Playing);
+        spin(180);
+        k.push(VoiceKeyer::Idle, -1);
+        loop.onTransmittingChanged(false);
+        report("pause reached", loop.phase() == VoiceKeyerLoop::Phase::Waiting);
+        loop.onRemoteTransmitting(true);
+        report("a linked key during the pause ends the loop", !loop.isActive()
+               && k.calls.last() == "start 1");
+    }
+
+    {
+        // A linked window that could not play the slot ends the loop here.
+        FakeKeyer k;
+        VoiceKeyerLoop loop(&k, kFast);
+        QString why;
+        QObject::connect(&loop, &VoiceKeyerLoop::interrupted, [&](const QString& r) { why = r; });
+        loop.start(1);
+        loop.onRemoteFault(QStringLiteral("Loop stopped: a linked radio could not play slot 1."));
+        report("a linked fault ends the loop with its reason", !loop.isActive()
+               && why.contains(QLatin1String("could not play")) && k.calls.last() == "stop 1");
+    }
+
     std::printf("%s\n", g_failed ? "FAILED" : "PASSED");
     return g_failed ? 1 : 0;
 }

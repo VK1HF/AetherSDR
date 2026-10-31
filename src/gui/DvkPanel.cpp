@@ -626,10 +626,40 @@ void DvkPanel::refreshTransport()
                           || s == VoiceKeyer::Playback);
 }
 
+bool DvkPanel::followLinkedPlay(int slot)
+{
+    if (!m_model || m_loop->isActive() || !m_model->canStartOperation()
+        || durationForSlot(slot) <= 0)
+        return false;
+    m_linkedSlot = slot;
+    m_model->playbackStart(slot);
+    return true;
+}
+
+void DvkPanel::endLinkedPlay()
+{
+    if (m_linkedSlot < 1)
+        return;
+    if (m_model && m_model->status() == VoiceKeyer::Playback && m_model->activeId() == m_linkedSlot)
+        m_model->playbackStop(m_linkedSlot);
+    m_linkedSlot = -1;
+}
+
+bool DvkPanel::linkedPlayOnAir() const
+{
+    return m_linkedSlot >= 1 && m_model && m_model->status() == VoiceKeyer::Playback
+           && m_model->activeId() == m_linkedSlot;
+}
+
 void DvkPanel::toggleLoop(bool on)
 {
     if (!on) {
         m_loop->stop();
+        return;
+    }
+    if (linkedPlayOnAir()) {
+        m_loopBtn->setChecked(false);
+        announceStatus(QStringLiteral("A linked window is running this slot."), true);
         return;
     }
     // Loop what is on air now if a slot is playing, else the selected slot.

@@ -68,6 +68,7 @@
 #include "core/FreeDvClient.h"
 #include "gui/FreeDvReporterDialog.h"
 #endif
+#include <QJsonObject>
 #include <QThread>
 #ifdef HAVE_SERIALPORT
 #include "core/SerialPortController.h"
@@ -146,6 +147,7 @@ class ConnectionPanel;
 class Ctr2ProxyModel;
 class FirmwareInstallDialog;
 class TitleBar;
+class TxLinkPeer;
 class KiwiSdrManager;
 struct KiwiSdrAntennaProfile;
 class SpectrumWidget;
@@ -1632,6 +1634,7 @@ private:
 
     // GUI — main area
     TitleBar*         m_titleBar{nullptr};
+    TxLinkPeer*       m_txLink{nullptr};            // keys linked windows together
     ::QSizeGrip*      m_sizeGrip{nullptr};
     QSplitter*        m_splitter{nullptr};
     PanadapterStack*  m_panStack{nullptr};

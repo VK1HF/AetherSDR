@@ -100,6 +100,7 @@ bool VoiceKeyerLoop::start(int slot)
     if (m_keyer->status() == VoiceKeyer::Playback && m_keyer->activeId() == slot) {
         m_playClock.invalidate();  // its start time is unknown, so no early-end test
         setPhase(Phase::Playing);
+        emit playStarted(m_slot);
         return true;
     }
     if (!m_keyer->canStartOperation()) {
@@ -121,6 +122,8 @@ void VoiceKeyerLoop::playNow()
     setPhase(Phase::Starting);
     m_startTimer.start(m_timing.startTimeoutMs);
     m_keyer->playbackStart(m_slot);
+    if (isActive())
+        emit playStarted(m_slot);
 }
 
 void VoiceKeyerLoop::stop(const QString& reason)
@@ -138,6 +141,7 @@ void VoiceKeyerLoop::stop(const QString& reason)
     // than the start it follows.
     if ((was == Phase::Starting || was == Phase::Playing) && m_keyer)
         m_keyer->playbackStop(m_slot);
+    emit playStopped();
     m_slot = -1;
     if (!reason.isEmpty())
         emit interrupted(reason);
@@ -214,6 +218,18 @@ void VoiceKeyerLoop::onTransmittingChanged(bool tx)
     } else if (m_phase == Phase::Waiting && tx) {
         stop(QStringLiteral("Loop stopped: the transmitter was keyed."));
     }
+}
+
+void VoiceKeyerLoop::onRemoteTransmitting(bool tx)
+{
+    if (m_phase == Phase::Waiting && tx)
+        stop(QStringLiteral("Loop stopped: another linked radio was keyed."));
+}
+
+void VoiceKeyerLoop::onRemoteFault(const QString& reason)
+{
+    if (isActive())
+        stop(reason);
 }
 
 void VoiceKeyerLoop::onTuneChanged(bool tuning)

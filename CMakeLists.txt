@@ -1009,6 +1009,7 @@ set(CORE_SOURCES
     src/core/ClientPudu.cpp
     src/core/ClientPuduMonitor.cpp
     src/core/ClientReverb.cpp
+    src/core/TxLinkPeer.cpp
     src/core/ClientPhaseRotator.cpp
     src/core/ClientFinalLimiter.cpp
     src/core/ClientTxTestTone.cpp

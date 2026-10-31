@@ -40,6 +40,7 @@
 #include "SpectrumWidget.h"
 #include "SupportDialog.h"
 #include "TitleBar.h"
+#include "core/TxLinkPeer.h"
 #include "UpdatesWindow.h"
 #include "MidiMappingDialog.h"
 #include "ProfileImportExportDialog.h"
@@ -367,6 +368,19 @@ void MainWindow::buildMenuBar()
     // right-click, which no keyboard or screen-reader operator can reach
     // (docs/a11y.md: every interactive widget needs a non-mouse activation
     // path). Same menu, same handler.
+    // Several windows on one Mac key together: a MOX in any of them keys all
+    // of them. Off by default; each radio still runs its own TX checks.
+    auto* txLinkAct = settingsMenu->addAction("Link TX With Other AetherSDR Windows");
+    txLinkAct->setCheckable(true);
+    txLinkAct->setChecked(AppSettings::instance().value("TxLinkEnabled", "False").toString() == "True");
+    txLinkAct->setToolTip(QStringLiteral("A MOX in any linked window keys every linked radio. "
+                                         "Each radio still needs its own voice audio."));
+    connect(txLinkAct, &QAction::toggled, this, [this](bool on) {
+        AppSettings::instance().setValue("TxLinkEnabled", on ? "True" : "False");
+        AppSettings::instance().save();
+        m_txLink->setEnabled(on);
+    });
+
     auto* voiceKeyerSourceAct = settingsMenu->addAction("Voice Keyer Source...");
     connect(voiceKeyerSourceAct, &QAction::triggered, this, [this] {
         showVoiceKeyerSourceMenu(voiceKeyerSourceMenuAnchor());
