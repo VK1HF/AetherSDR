@@ -40,6 +40,7 @@
 #include "SpectrumWidget.h"
 #include "SupportDialog.h"
 #include "TitleBar.h"
+#include "core/EqPresetFile.h"
 #include "UpdatesWindow.h"
 #include "MidiMappingDialog.h"
 #include "ProfileImportExportDialog.h"
@@ -72,6 +73,8 @@
 #include <QCoreApplication>
 #include <QCheckBox>
 #include <QDesktopServices>
+#include <QFileDialog>
+#include <QMessageBox>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QJsonObject>
@@ -367,6 +370,14 @@ void MainWindow::buildMenuBar()
     // right-click, which no keyboard or screen-reader operator can reach
     // (docs/a11y.md: every interactive widget needs a non-mouse activation
     // path). Same menu, same handler.
+    // Each equalizer saves and loads on its own, to a file of its own.
+    QMenu* eqPresets = settingsMenu->addMenu("Equalizer Presets");
+    eqPresets->addAction("Save RX Equalizer...", this, [this] { saveEqualizerFile(true); });
+    eqPresets->addAction("Load RX Equalizer...", this, [this] { loadEqualizerFile(true); });
+    eqPresets->addSeparator();
+    eqPresets->addAction("Save TX Equalizer...", this, [this] { saveEqualizerFile(false); });
+    eqPresets->addAction("Load TX Equalizer...", this, [this] { loadEqualizerFile(false); });
+
     auto* voiceKeyerSourceAct = settingsMenu->addAction("Voice Keyer Source...");
     connect(voiceKeyerSourceAct, &QAction::triggered, this, [this] {
         showVoiceKeyerSourceMenu(voiceKeyerSourceMenuAnchor());
@@ -2441,4 +2452,38 @@ void MainWindow::setAutomaticUpdateCheck(bool on)
         restoreKnownUpdate();
     }
 }
+void MainWindow::saveEqualizerFile(bool rx)
+{
+    const EqPresetFile::Chain chain = rx ? EqPresetFile::Chain::Rx : EqPresetFile::Chain::Tx;
+    const QString label = rx ? QStringLiteral("RX") : QStringLiteral("TX");
+    const QString path = QFileDialog::getSaveFileName(
+        this, tr("Save %1 Equalizer").arg(label), EqPresetFile::defaultPath(chain),
+        tr("Equalizer settings (*.json)"));
+    if (path.isEmpty())
+        return;
+    QString error;
+    if (!EqPresetFile::save(m_audio, chain, path, &error)) {
+        QMessageBox::warning(this, tr("Save %1 Equalizer").arg(label), error);
+        return;
+    }
+    statusBar()->showMessage(tr("Saved the %1 equalizer to %2").arg(label, path), 4000);
+}
+
+void MainWindow::loadEqualizerFile(bool rx)
+{
+    const EqPresetFile::Chain chain = rx ? EqPresetFile::Chain::Rx : EqPresetFile::Chain::Tx;
+    const QString label = rx ? QStringLiteral("RX") : QStringLiteral("TX");
+    const QString path = QFileDialog::getOpenFileName(
+        this, tr("Load %1 Equalizer").arg(label), EqPresetFile::defaultPath(chain),
+        tr("Equalizer settings (*.json)"));
+    if (path.isEmpty())
+        return;
+    QString error;
+    if (!EqPresetFile::load(m_audio, chain, path, &error)) {
+        QMessageBox::warning(this, tr("Load %1 Equalizer").arg(label), error);
+        return;
+    }
+    statusBar()->showMessage(tr("Loaded the %1 equalizer from %2").arg(label, path), 4000);
+}
+
 } // namespace AetherSDR

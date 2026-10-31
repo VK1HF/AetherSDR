@@ -10808,3 +10808,13 @@ if(HAVE_PIPEWIRE)
     target_link_libraries(pipewire_rx_bridge_test PRIVATE aethercore Qt6::Core)
     add_test(NAME pipewire_rx_bridge_test COMMAND pipewire_rx_bridge_test)
 endif()
+
+# EQ-only save and load: the RX and TX equalizers each keep their own file.
+add_executable(eq_preset_file_test
+    tests/eq_preset_file_test.cpp
+    src/core/EqPresetFormat.cpp
+    src/core/EqPresetFile.h
+)
+target_include_directories(eq_preset_file_test PRIVATE src)
+target_link_libraries(eq_preset_file_test PRIVATE Qt6::Core)
+add_test(NAME eq_preset_file_test COMMAND eq_preset_file_test)
