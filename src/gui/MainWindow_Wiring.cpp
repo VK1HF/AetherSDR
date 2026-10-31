@@ -10,6 +10,7 @@
 #include "core/backends/AutoRfGainControl.h"
 #include "core/ClientDisplaySettings.h"
 #include "core/DbmRangePlausibility.h"
+#include "core/TxLinkPeer.h"
 #include "core/backends/NoiseFloorAutoAdjustGate.h"
 #include "core/backends/SquelchLevelScale.h"
 #include <QHBoxLayout>
@@ -6261,6 +6262,18 @@ void MainWindow::wireVfoWidget(VfoWidget* w, SliceModel* s)
         // can still report the pre-SWAP frequency while these tunes are pending.
         applyTuneRequest(tx, rxFreq, TuneIntent::IncrementalTune, "split-swap-tx");
     });
+
+    // Sync button: copy this slice to the same slice on the linked windows.
+    connect(w, &VfoWidget::copyRequested, this, [this, sliceId]() {
+        copySliceToLinkedWindows(sliceId);
+    });
+    // Copy is offered only while another linked window can take it.
+    if (m_txLink) {
+        w->setCopyAvailable(m_txLink->peerCount() > 0);
+        connect(m_txLink, &TxLinkPeer::peersChanged, w, [w](int count) {
+            w->setCopyAvailable(count > 0);
+        });
+    }
 
     // Right-click the SPLIT/SWAP badge — offsets, Monitor TX mode, and the
     // remembered audio arrangement (#2242, #311).

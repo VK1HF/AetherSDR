@@ -42,6 +42,7 @@
 #include <QAction>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPolygonF>
 #include <QPushButton>
 #include <QPointer>
 #include <QStyle>
@@ -399,6 +400,48 @@ private:
 };
 
 namespace AetherSDR {
+
+namespace {
+
+// The sync symbol: two flat arrows, one pointing right and one pointing left.
+// Painted at a large size, so it stays crisp when drawn smaller.
+QIcon copyArrowsIcon(int px, const QColor& colour)
+{
+    QPixmap pm(px, px);
+    pm.fill(Qt::transparent);
+    QPainter p(&pm);
+    p.setRenderHint(QPainter::Antialiasing);
+    const double left = px * 0.18;
+    const double right = px * 0.82;
+    const double head = px * 0.17;     // arrowhead length
+    const double halfHead = px * 0.13; // half the arrowhead's height
+    const double width = px * 0.08;
+    const double topY = px * 0.36;
+    const double bottomY = px * 0.64;
+
+    // Top arrow: left to right.
+    p.setPen(QPen(colour, width, Qt::SolidLine, Qt::FlatCap));
+    p.drawLine(QPointF(left, topY), QPointF(right - head * 0.6, topY));
+    p.setPen(Qt::NoPen);
+    p.setBrush(colour);
+    QPolygonF topHead;
+    topHead << QPointF(right, topY) << QPointF(right - head, topY - halfHead)
+            << QPointF(right - head, topY + halfHead);
+    p.drawPolygon(topHead);
+
+    // Bottom arrow: right to left.
+    p.setPen(QPen(colour, width, Qt::SolidLine, Qt::FlatCap));
+    p.drawLine(QPointF(right, bottomY), QPointF(left + head * 0.6, bottomY));
+    p.setPen(Qt::NoPen);
+    QPolygonF bottomHead;
+    bottomHead << QPointF(left, bottomY) << QPointF(left + head, bottomY - halfHead)
+               << QPointF(left + head, bottomY + halfHead);
+    p.drawPolygon(bottomHead);
+    p.end();
+    return QIcon(pm);
+}
+
+}  // namespace
 
 static bool isFmRfMode(const QString& mode)
 {
@@ -1161,6 +1204,19 @@ void VfoWidget::buildUI()
         m_radeStatusLabel->hide();
         freqRow->addWidget(m_radeStatusLabel);
 #endif
+        m_copyBtn = new QPushButton;
+        m_copyBtn->setFixedSize(45, 45);
+        m_copyBtn->setIcon(copyArrowsIcon(144, QColor(0xc8, 0xd8, 0xe8)));
+        m_copyBtn->setIconSize(QSize(30, 30));
+        m_copyBtn->setCursor(Qt::PointingHandCursor);
+        m_copyBtn->setStyleSheet(
+            "QPushButton { background: transparent; border: none; border-radius: 22px; padding: 0; }"
+            "QPushButton:hover { background: rgba(255,255,255,30); }");
+        connect(m_copyBtn, &QPushButton::clicked, this, [this] { emit copyRequested(); });
+        updateCopyTooltip();
+        // Centred in the space left of the frequency readout.
+        freqRow->addStretch(1);
+        freqRow->addWidget(m_copyBtn, 0, Qt::AlignCenter);
         freqRow->addStretch(1);
         freqRow->addWidget(m_freqStack);
         root->addLayout(freqRow);
@@ -5120,6 +5176,8 @@ void VfoWidget::setSlice(SliceModel* slice)
     connect(m_slice, &SliceModel::rxAntennaChanged, this, [this](const QString& ant) {
         m_updatingFromModel = true; updateAntennaButton(m_rxAntBtn, ant, false); m_updatingFromModel = false;
     });
+    connect(m_slice, &SliceModel::letterChanged, this, [this](const QString&) { updateCopyTooltip(); });
+    updateCopyTooltip();
     connect(m_slice, &SliceModel::txAntennaChanged, this, [this](const QString& ant) {
         m_updatingFromModel = true; updateAntennaButton(m_txAntBtn, ant, true); m_updatingFromModel = false;
     });
@@ -7626,6 +7684,29 @@ void VfoWidget::reparentFlagSatellites(QWidget* newParent)
         sat->raise();
     }
     syncShadowGeometry();
+}
+
+
+void VfoWidget::setCopyAvailable(bool available)
+{
+    if (!m_copyBtn)
+        return;
+    m_copyBtn->setEnabled(available);
+    updateCopyTooltip();
+}
+
+void VfoWidget::updateCopyTooltip()
+{
+    if (!m_copyBtn)
+        return;
+    const QString letter = m_slice ? m_slice->letter() : QString();
+    if (!m_copyBtn->isEnabled()) {
+        m_copyBtn->setToolTip(tr("Copy needs another AetherSDR window linked with Link TX in Settings"));
+        return;
+    }
+    m_copyBtn->setToolTip(letter.isEmpty()
+        ? tr("Copy this slice to the other linked windows")
+        : tr("Copy slice %1 to slice %1 on the other linked windows").arg(letter));
 }
 
 } // namespace AetherSDR

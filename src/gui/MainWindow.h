@@ -525,6 +525,10 @@ private:
                                                        const char* source);
     void applyTuneRequest(SliceModel* slice, double mhz,
                           TuneIntent intent, const char* source);
+    // Slice copy over the TX link: send this slice's frequency, mode and
+    // filter to the linked windows, and apply one that arrives.
+    void copySliceToLinkedWindows(int sliceId);
+    void applySliceCopy(const QJsonObject& payload);
     // Shared band selection for overlay band buttons and band_* shortcut/MIDI
     // actions (#4543). Flex: sends a band-stack recall (display pan set <panId>
     // band=<key>) and the radio restores freq/mode/filters/antenna; freqMhz/mode

@@ -1932,6 +1932,7 @@ MainWindow::MainWindow(QWidget* parent)
     });
     m_txLink->setEnabled(
         AppSettings::instance().value("TxLinkEnabled", "False").toString() == "True");
+    connect(m_txLink, &TxLinkPeer::copyReceived, this, &MainWindow::applySliceCopy);
 
     // transmittingChanged, not moxCommandIssued: the MOX button keys through
     // RadioModel's producer path, which reports the key only as a
@@ -11944,6 +11945,51 @@ void MainWindow::onSpectrumReadyForSHistory(quint32 streamId, const QVector<floa
             PerfTelemetry::instance().recordSHistorySkipped();
         }
     }
+}
+
+void MainWindow::copySliceToLinkedWindows(int sliceId)
+{
+    const SliceModel* slice = m_radioModel.slice(sliceId);
+    if (!slice)
+        return;
+    QJsonObject payload;
+    payload.insert(QStringLiteral("slice"), slice->letter());
+    payload.insert(QStringLiteral("freq"), slice->frequency());
+    payload.insert(QStringLiteral("mode"), slice->mode());
+    payload.insert(QStringLiteral("low"), slice->filterLow());
+    payload.insert(QStringLiteral("high"), slice->filterHigh());
+    if (!m_txLink->sendCopy(payload)) {
+        statusBar()->showMessage(
+            tr("Slice copy needs the TX link: turn on Link TX With Other AetherSDR Windows in Settings."),
+            5000);
+    }
+}
+
+void MainWindow::applySliceCopy(const QJsonObject& payload)
+{
+    const QString letter = payload.value(QStringLiteral("slice")).toString();
+    SliceModel* target = nullptr;
+    for (SliceModel* s : m_radioModel.slices()) {
+        if (s && s->letter() == letter) {
+            target = s;
+            break;
+        }
+    }
+    if (!target) {
+        statusBar()->showMessage(tr("Slice copy: this radio has no slice %1.").arg(letter), 4000);
+        return;
+    }
+    // A retune during TX moves the signal on air, so refuse it.
+    const auto& tx = m_radioModel.transmitModel();
+    if (tx.isTransmitting() || tx.isTuning()) {
+        statusBar()->showMessage(tr("Slice copy skipped: this radio is transmitting."), 4000);
+        return;
+    }
+    applyTuneRequest(target, payload.value(QStringLiteral("freq")).toDouble(),
+                     TuneIntent::IncrementalTune, "slice-sync");
+    target->setMode(payload.value(QStringLiteral("mode")).toString());
+    target->setFilterWidth(payload.value(QStringLiteral("low")).toInt(),
+                           payload.value(QStringLiteral("high")).toInt());
 }
 
 } // namespace AetherSDR
