@@ -2361,6 +2361,11 @@ else()
     message(STATUS "Build SHA: ${_aether_configure_sha} (git unavailable or not a git checkout)")
 endif()
 
+# A short name for this build (a politician's surname, by the operator's
+# convention), shown after the version in the About dialog. Pass it on the
+# configure line: cmake -B build -DAETHER_BUILD_NAME=keating
+set(AETHER_BUILD_NAME "" CACHE STRING "Short name shown in the About dialog for this build")
+
 # ---- Build identity, captured at BUILD time (#5804) -----------------------
 # The ONE build identity in the binary. A configure-time capture keeps the
 # previous value when `cmake --build` runs after a new commit; this target
@@ -2388,6 +2393,9 @@ foreach(_aether_build_id_consumer aetherdesktop_support AetherSDR)
     add_dependencies(${_aether_build_id_consumer} aether_build_identity)
     target_include_directories(${_aether_build_id_consumer} PRIVATE "${AETHER_BUILD_ID_DIR}")
 endforeach()
+if(AETHER_BUILD_NAME)
+    target_compile_definitions(AetherSDR PRIVATE "AETHER_BUILD_NAME=\"${AETHER_BUILD_NAME}\"")
+endif()
 
 # Reproducible-builds.org SOURCE_DATE_EPOCH support.  When a distro
 # packager (Debian, Arch, NixOS, openSUSE, Fedora, etc.) sets

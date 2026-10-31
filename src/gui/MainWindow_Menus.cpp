@@ -1956,8 +1956,13 @@ void MainWindow::buildMenuBar()
         // The git SHA identifies the build — useful when bug-reporting against
         // a dev/test build that doesn't correspond to a tagged release. It is
         // captured at build time; see cmake/AetherBuildIdentity.cmake.
-        auto* version = new QLabel(QStringLiteral("v%1  <span style='font-family:monospace; font-size:11px;'>%2</span>")
-                                       .arg(QCoreApplication::applicationVersion(),
+#ifdef AETHER_BUILD_NAME
+        const QString buildName = QStringLiteral(" &middot; %1").arg(QStringLiteral(AETHER_BUILD_NAME).toUpper());
+#else
+        const QString buildName;
+#endif
+        auto* version = new QLabel(QStringLiteral("v%1%2  <span style='font-family:monospace; font-size:11px;'>%3</span>")
+                                       .arg(QCoreApplication::applicationVersion(), buildName,
                                             QStringLiteral(AETHER_BUILD_SHA)));
         version->setAlignment(Qt::AlignCenter);
         version->setToolTip(QStringLiteral("Version and the commit this binary was built from."));
