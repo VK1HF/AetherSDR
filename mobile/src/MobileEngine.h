@@ -656,6 +656,10 @@ class MobileEngine : public QObject {
     // True: the radio's DVK (licensed); false: the app's own voice macros,
     // recorded and kept on this device and played into the TX audio.
     Q_PROPERTY(bool dvkOnRadio READ dvkOnRadio NOTIFY dvkChanged)
+    // The radio has reported SmartSDR+'s DVK: the choice below is offered.
+    Q_PROPERTY(bool dvkRadioAvailable READ dvkRadioAvailable NOTIFY dvkChanged)
+    // Keep the voice keyer on this device even when the radio has a DVK.
+    Q_PROPERTY(bool voiceKeyerLocal READ voiceKeyerLocal WRITE setVoiceKeyerLocal NOTIFY dvkChanged)
     // Macros panel › Repeat (Robin Bishop, roadmap 33): a voice keyer slot or
     // a CW memory sent again every macroRepeatGap seconds after it ends,
     // until PTT, KEY, Stop, any key, another slot or the switch. The switch
@@ -1529,6 +1533,9 @@ public:
     QVariantList dvkSlots() const;
     QString dvkState() const;
     bool dvkOnRadio() const;
+    bool dvkRadioAvailable() const;
+    bool voiceKeyerLocal() const;
+    void setVoiceKeyerLocal(bool local);
     // A SmartSDR+ feature the radio's license status allows (true until the
     // radio has reported it).
     bool radioFeatureLicensed(const QString& feature) const;

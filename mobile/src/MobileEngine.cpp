@@ -3139,11 +3139,45 @@ bool MobileEngine::radioFeatureLicensed(const QString& feature) const
     return true;
 }
 
+bool MobileEngine::dvkRadioAvailable() const
+{
+    // The radio's DVK needs SmartSDR+, and only a radio that has said it has
+    // the feature gets it: a radio that never reports it (seen on a FLEX-8400
+    // and an Aurora AU-510 without SmartSDR+) took the radio's DVK, which
+    // then did nothing, instead of the app's own clips.
+    const RadioModel& rm = m_session.radioModel();
+    if (!m_connected || rm.dvkLicenseRefused()) {
+        return false;
+    }
+    const QString feature(DvkModel::kLicenseFeature);
+    for (const QString& name : {feature.toLower(), feature.toUpper()}) {
+        if (rm.licenseFeatureSeen(name)) {
+            return rm.licenseFeatureEnabled(name);
+        }
+    }
+    return false;
+}
+
 bool MobileEngine::dvkOnRadio() const
 {
-    // The radio's DVK needs SmartSDR+; without it the app keeps its own.
-    const RadioModel& rm = m_session.radioModel();
-    return m_connected && !rm.dvkLicenseRefused() && radioFeatureLicensed(QString(DvkModel::kLicenseFeature));
+    // With SmartSDR+ the operator can still keep the voice keyer here.
+    return dvkRadioAvailable() && !voiceKeyerLocal();
+}
+
+bool MobileEngine::voiceKeyerLocal() const
+{
+    return AppSettings::instance().value(QStringLiteral("MobileVoiceKeyerLocal"), false).toBool();
+}
+
+void MobileEngine::setVoiceKeyerLocal(bool local)
+{
+    if (local == voiceKeyerLocal()) {
+        return;
+    }
+    dvkStop();
+    AppSettings::instance().setValue(QStringLiteral("MobileVoiceKeyerLocal"), local);
+    AppSettings::instance().save();
+    emit dvkChanged();
 }
 
 namespace {

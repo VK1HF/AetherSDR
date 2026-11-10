@@ -574,6 +574,31 @@ ColumnLayout {
         color: Engine.dvkState === "idle" ? Theme.textDim : Theme.warning
         font.pixelSize: Theme.px(15)
     }
+    // Where the voice keyer runs, for a radio with SmartSDR+'s DVK; without
+    // it the voice keyer is always on this device.
+    RowLayout {
+        visible: !Engine.cwMode && Engine.dvkState !== "unavailable" && Engine.dvkRadioAvailable
+        Layout.fillWidth: true
+        spacing: Theme.spacing / 2
+        AppButton {
+            objectName: "voiceKeyerLocal"
+            text: qsTr("This device")
+            checked: Engine.voiceKeyerLocal
+            Layout.fillWidth: true
+            Layout.preferredWidth: 1
+            Layout.preferredHeight: Theme.touchTarget
+            onClicked: Engine.voiceKeyerLocal = true
+        }
+        AppButton {
+            objectName: "voiceKeyerRadio"
+            text: qsTr("Radio DVK")
+            checked: !Engine.voiceKeyerLocal
+            Layout.fillWidth: true
+            Layout.preferredWidth: 1
+            Layout.preferredHeight: Theme.touchTarget
+            onClicked: Engine.voiceKeyerLocal = false
+        }
+    }
     GridLayout {
         visible: !Engine.cwMode && Engine.dvkState !== "unavailable"
         Layout.fillWidth: true
