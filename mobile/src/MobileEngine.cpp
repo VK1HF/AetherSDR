@@ -7444,6 +7444,19 @@ double MobileEngine::textScale() const
     return std::clamp(v, 0.88, 1.35);
 }
 
+bool MobileEngine::showDemoRadio() const
+{
+    return AppSettings::instance().value(QStringLiteral("MobileShowDemoRadio"), true).toBool();
+}
+
+void MobileEngine::setShowDemoRadio(bool show)
+{
+    if (show == showDemoRadio()) return;
+    AppSettings::instance().setValue(QStringLiteral("MobileShowDemoRadio"), show);
+    AppSettings::instance().save();
+    emit showDemoRadioChanged();
+}
+
 QString MobileEngine::buttonStyle() const
 {
     const QString style = AppSettings::instance().value(QStringLiteral("MobileButtonStyle"), QStringLiteral("lit")).toString();

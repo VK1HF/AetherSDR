@@ -119,10 +119,23 @@ Page {
             }
 
             // ---- This network ----
-            Label {
-                text: Engine.radios.count > 0 ? qsTr("On this network") : qsTr("Searching this network…")
-                color: Theme.textDim
-                font.pixelSize: Theme.px(17)
+            // The demo radio's switch shares the heading's line.
+            RowLayout {
+                Layout.fillWidth: true
+                Label {
+                    text: Engine.radios.count > 0 ? qsTr("On this network") : qsTr("Searching this network…")
+                    color: Theme.textDim
+                    font.pixelSize: Theme.px(17)
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                }
+                AppButton {
+                    objectName: "demoRadioToggle"
+                    text: Engine.showDemoRadio ? qsTr("Demo radio: on") : qsTr("Demo radio: off")
+                    checked: Engine.showDemoRadio
+                    focusPolicy: Qt.NoFocus
+                    onClicked: Engine.showDemoRadio = !Engine.showDemoRadio
+                }
             }
             Repeater {
                 model: Engine.radios
@@ -135,6 +148,7 @@ Page {
                     required property string version
                     required property string transport
                     required property bool inUse
+                    visible: transport !== "sim" || Engine.showDemoRadio
                     title: (nickname.length > 0 ? nickname + " — " : "") + (model.length > 0 ? model : name)
                     subtitle: transport === "sim"
                               ? qsTr("Built-in demo radio (receive only)")

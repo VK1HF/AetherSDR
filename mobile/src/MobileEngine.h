@@ -88,6 +88,8 @@ class MobileEngine : public QObject {
     Q_PROPERTY(QString textSize READ textSize WRITE setTextSize NOTIFY textScaleChanged)
     Q_PROPERTY(double textScale READ textScale NOTIFY textScaleChanged)
     Q_PROPERTY(double systemTextScale READ systemTextScaleValue NOTIFY textScaleChanged)
+    // The built-in demo radio in the "On this network" list (on by default).
+    Q_PROPERTY(bool showDemoRadio READ showDemoRadio WRITE setShowDemoRadio NOTIFY showDemoRadioChanged)
     // PTT as a switch (tap on, tap off) instead of hold-to-talk; remembered.
     // A latched transmission stops by itself after kPttToggleLimitS.
     Q_PROPERTY(bool pttToggle READ pttToggle WRITE setPttToggle NOTIFY pttToggleChanged)
@@ -695,6 +697,8 @@ public:
     void setBandPlan(const QString& name);
     QString buttonStyle() const;
     QString textSize() const;
+    bool showDemoRadio() const;
+    void setShowDemoRadio(bool show);
     void setTextSize(const QString& size);
     double textScale() const;
     double systemTextScaleValue() const { return m_systemTextScale; }
@@ -1761,6 +1765,7 @@ signals:
     void bandPlanRegionChanged();
     void buttonStyleChanged();
     void textScaleChanged();
+    void showDemoRadioChanged();
     void pttToggleChanged();
     void txLockChanged();
     void audioCompressionChanged();
