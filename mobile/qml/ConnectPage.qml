@@ -216,7 +216,9 @@ Page {
                         RowLayout {
                             Layout.fillWidth: true
                             Label {
-                                text: Engine.smartLinkAccount.length > 0 ? Engine.smartLinkAccount : qsTr("Signed in")
+                                // Kept through no network: the names are not known yet.
+                                text: Engine.smartLinkAccount.length > 0 ? Engine.smartLinkAccount
+                                      : Engine.smartLinkEmail.length > 0 ? Engine.smartLinkEmail : qsTr("Signed in")
                                 color: Theme.text
                                 font.pixelSize: Theme.px(16)
                                 elide: Text.ElideRight

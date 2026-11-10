@@ -2515,6 +2515,13 @@ private:
     // A host name being looked up before connecting (connectToAddress).
     int m_hostLookupId{-1};
     bool m_smartLinkRetried{false};   // one re-sign-in after a refused session
+    // A kept sign-in that could not reach SmartLink (no network) is kept and
+    // tried again: backing off, at once when the network or the app comes
+    // back. Only a refusal by the server removes it.
+    QTimer m_smartLinkRetryTimer;
+    int m_smartLinkRetries{0};
+    void retrySmartLinkSignIn(const char* why);
+    bool smartLinkWaitingForNetwork() const;
     QTimer m_wanReconnectTimer;
     QString m_smartLinkState{QStringLiteral("signedOut")};
     double m_systemTextScale{1.0};   // read at start and on each return to the front

@@ -8,6 +8,8 @@
 #include <QTimer>
 #include <QNetworkAccessManager>
 
+class QNetworkReply;
+
 namespace AetherSDR {
 
 // Information about a radio discovered via SmartLink (WAN).
@@ -82,6 +84,18 @@ public:
     QString lastName()     const { return m_userLastName; }
     QString idToken()      const { return m_idToken; }
     QString refreshToken() const { return m_refreshToken; }
+    // Why the last authFailed(): true when the server refused the
+    // credentials (a kept refresh token is then no good), false when it was
+    // not reached or answered badly (keep the token, try again later).
+    bool lastFailureRefused() const { return m_lastFailureRefused; }
+    // An Auth0 answer refusing the request (invalid_grant: a wrong password,
+    // a revoked or expired refresh token) is 400/401/403. No answer at all
+    // (no network, DNS, TLS: status 0), a timeout or rate limit (408/429)
+    // and server trouble (5xx) are not a refusal.
+    static constexpr bool isRefusalStatus(int httpStatus)
+    {
+        return httpStatus >= 400 && httpStatus < 500 && httpStatus != 408 && httpStatus != 429;
+    }
 
 signals:
     // Auth0 login result
@@ -105,6 +119,7 @@ private slots:
 
 private:
     friend struct SmartLinkClientTestAccess;
+    static bool auth0Refused(QNetworkReply* reply);
     void connectToServer();
     void parseMessage(const QString& msg);
     void parseRadioList(const QString& msg);
@@ -124,6 +139,7 @@ private:
     QString m_refreshToken;
     bool    m_authenticated{false};
     bool    m_authRequestInProgress{false};
+    bool    m_lastFailureRefused{false};
     int     m_authGeneration{0};   // bumped by endSession(): late answers ignored
 
     // SmartLink server TLS connection

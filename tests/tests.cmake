@@ -682,6 +682,13 @@ target_include_directories(auto_agc_threshold_test PRIVATE src tests)
 target_link_libraries(auto_agc_threshold_test PRIVATE aethercore Qt6::Core Qt6::Test)
 add_test(NAME auto_agc_threshold_test COMMAND auto_agc_threshold_test)
 
+# Which SmartLink sign-in failures are the server refusing it (the kept
+# sign-in is then dropped) and which are only not reaching it (kept).
+add_executable(smartlink_refusal_test tests/smartlink_refusal_test.cpp)
+target_include_directories(smartlink_refusal_test PRIVATE src)
+target_link_libraries(smartlink_refusal_test PRIVATE aethercore Qt6::Core Qt6::Network Qt6::Test)
+add_test(NAME smartlink_refusal_test COMMAND smartlink_refusal_test)
+
 # ATU start on the IRadioBackend seam passes the TX gate (#5558): injected
 # backend records setAtu(); no sockets, no radio.
 add_executable(atu_seam_gate_test tests/atu_seam_gate_test.cpp)

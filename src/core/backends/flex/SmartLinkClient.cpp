@@ -66,6 +66,11 @@ SmartLinkClient::~SmartLinkClient()
 
 // ── Auth0 Login ──────────────────────────────────────────────────────────────
 
+bool SmartLinkClient::auth0Refused(QNetworkReply* reply)
+{
+    return isRefusalStatus(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt());
+}
+
 void SmartLinkClient::login(const QString& email, const QString& password)
 {
     // Auth0 Resource Owner Password Grant
@@ -103,7 +108,9 @@ void SmartLinkClient::login(const QString& email, const QString& password)
             const auto data = reply->readAll();
             QJsonObject err = QJsonDocument::fromJson(data).object();
             QString desc = err.value("error_description").toString(reply->errorString());
-            qCWarning(lcSmartLink) << "SmartLinkClient: Auth0 login failed:" << desc;
+            m_lastFailureRefused = auth0Refused(reply);
+            qCWarning(lcSmartLink) << "SmartLinkClient: Auth0 login failed:" << desc
+                                   << (m_lastFailureRefused ? "(refused)" : "(not reached)");
             emit authFailed(desc);
             return;
         }
@@ -115,6 +122,7 @@ void SmartLinkClient::login(const QString& email, const QString& password)
 
         if (m_idToken.isEmpty()) {
             qCWarning(lcSmartLink) << "SmartLinkClient: Auth0 response missing id_token";
+            m_lastFailureRefused = false;
             emit authFailed("No id_token in response");
             return;
         }
@@ -168,7 +176,9 @@ void SmartLinkClient::loginWithRefreshToken(const QString& refreshToken)
             const auto data = reply->readAll();
             QJsonObject err = QJsonDocument::fromJson(data).object();
             QString desc = err.value("error_description").toString(reply->errorString());
-            qCWarning(lcSmartLink) << "SmartLinkClient: Auth0 refresh failed:" << desc;
+            m_lastFailureRefused = auth0Refused(reply);
+            qCWarning(lcSmartLink) << "SmartLinkClient: Auth0 refresh failed:" << desc
+                                   << (m_lastFailureRefused ? "(refused)" : "(not reached)");
             emit authFailed(desc);
             return;
         }
@@ -182,6 +192,7 @@ void SmartLinkClient::loginWithRefreshToken(const QString& refreshToken)
             m_refreshToken = newRefresh;
 
         if (m_idToken.isEmpty()) {
+            m_lastFailureRefused = false;
             emit authFailed("No id_token in refresh response");
             return;
         }
@@ -474,6 +485,7 @@ void SmartLinkClient::parseMessage(const QString& msg)
         if (m_socket.state() != QAbstractSocket::UnconnectedState) {
             m_socket.disconnectFromHost();
         }
+        m_lastFailureRefused = true;  // the server refused this session's token
         emit authFailed("SmartLink registration invalid — please re-login");
     } else if (msg.startsWith("radio test_connection")) {
         parseTestResults(msg);
