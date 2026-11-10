@@ -238,26 +238,16 @@ Page {
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
                             }
-                            // Two taps: the row appears where the sign-in
-                            // form or the "Signing in" line was, and one
-                            // stray tap there signed a tester out (the kept
-                            // sign-in is removed with it).
+                            // Asked in a dialog: the row appears where the
+                            // sign-in form or the "Signing in" line was, and
+                            // one stray tap there signed a tester out (the
+                            // kept sign-in is removed with it). The earlier
+                            // two-tap arm looked like nothing happened.
                             AppButton {
-                                id: signOut
-                                property bool armed: false
-                                text: armed ? qsTr("Sign out?") : qsTr("Sign out")
-                                checked: armed
+                                objectName: "smartLinkSignOut"
+                                text: qsTr("Sign out")
                                 focusPolicy: Qt.NoFocus
-                                onClicked: {
-                                    if (armed) {
-                                        armed = false
-                                        Engine.signOutSmartLink()
-                                    } else {
-                                        armed = true
-                                        disarm.restart()
-                                    }
-                                }
-                                Timer { id: disarm; interval: 3000; onTriggered: signOut.armed = false }
+                                onClicked: signOutConfirm.open()
                             }
                         }
                         Label {
@@ -357,6 +347,39 @@ Page {
     }
 
     LogPage { id: logPage }
+    Dialog {
+        id: signOutConfirm
+        objectName: "signOutConfirm"
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(420, parent ? parent.width - 24 : 400)
+        modal: true
+        padding: Theme.spacing
+        background: Rectangle { color: Theme.surface; radius: Theme.radius; border.color: Theme.surfaceRaised }
+        contentItem: ColumnLayout {
+            spacing: Theme.spacing
+            Label {
+                text: qsTr("Sign out of SmartLink (%1)? The kept sign-in is removed: next time it asks for the password.")
+                      .arg(Engine.smartLinkEmail.length > 0 ? Engine.smartLinkEmail : Engine.smartLinkAccount)
+                color: Theme.text
+                font.pixelSize: Theme.px(17)
+                Layout.preferredWidth: signOutConfirm.width - 2 * signOutConfirm.padding
+                wrapMode: Text.WordWrap
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                AppButton { text: qsTr("Cancel"); Layout.fillWidth: true; onClicked: signOutConfirm.close() }
+                AppButton {
+                    text: qsTr("Sign out")
+                    Layout.fillWidth: true
+                    onClicked: {
+                        signOutConfirm.close()
+                        Engine.signOutSmartLink()
+                    }
+                }
+            }
+        }
+    }
     AddressDialog {
         id: addressDialog
         // A new radio connects (and joins the list); a saved one's new
