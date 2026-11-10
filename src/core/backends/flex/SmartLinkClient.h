@@ -53,6 +53,9 @@ public:
     void loginWithRefreshToken(const QString& refreshToken);
     // Logout and disconnect from SmartLink server
     void logout();
+    // Ends this session (tokens forgotten in memory, server connection cut)
+    // without touching any stored credentials: switching accounts.
+    void endSession();
     // Attempt silent login from stored keychain credentials
     void tryAutoLogin();
     // Save current refresh token to OS keychain
@@ -121,6 +124,7 @@ private:
     QString m_refreshToken;
     bool    m_authenticated{false};
     bool    m_authRequestInProgress{false};
+    int     m_authGeneration{0};   // bumped by endSession(): late answers ignored
 
     // SmartLink server TLS connection
     // NOTE: m_pingTimer and m_serverConnected must be declared before m_socket

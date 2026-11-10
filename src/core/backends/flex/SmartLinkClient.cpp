@@ -90,8 +90,14 @@ void SmartLinkClient::login(const QString& email, const QString& password)
     s.save();
 
     auto* reply = m_nam.post(req, QJsonDocument(body).toJson());
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+    const int generation = m_authGeneration;
+    connect(reply, &QNetworkReply::finished, this, [this, reply, generation] {
         reply->deleteLater();
+        // Signed out (or another account) since: this answer is not wanted.
+        if (generation != m_authGeneration) {
+            qCDebug(lcSmartLink) << "SmartLinkClient: Auth0 login answer after sign-out ignored";
+            return;
+        }
 
         if (reply->error() != QNetworkReply::NoError) {
             const auto data = reply->readAll();
@@ -147,8 +153,15 @@ void SmartLinkClient::loginWithRefreshToken(const QString& refreshToken)
 
     m_authRequestInProgress = true;
     auto* reply = m_nam.post(req, QJsonDocument(body).toJson());
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+    const int generation = m_authGeneration;
+    connect(reply, &QNetworkReply::finished, this, [this, reply, generation] {
         reply->deleteLater();
+        // Signed out (or another account) since: a late refresh must not sign
+        // back in.
+        if (generation != m_authGeneration) {
+            qCDebug(lcSmartLink) << "SmartLinkClient: Auth0 refresh answer after sign-out ignored";
+            return;
+        }
         m_authRequestInProgress = false;
 
         if (reply->error() != QNetworkReply::NoError) {
@@ -183,14 +196,27 @@ void SmartLinkClient::loginWithRefreshToken(const QString& refreshToken)
 
 void SmartLinkClient::logout()
 {
+    endSession();
+    clearCredentials();
+}
+
+void SmartLinkClient::endSession()
+{
+    // Answers to sign-ins already sent are dropped (the generation), and the
+    // server connection is cut, not closed gracefully: a radio list still on
+    // its way must not arrive after the sign-out.
+    ++m_authGeneration;
+    m_authRequestInProgress = false;
     m_authenticated = false;
     m_idToken.clear();
     m_refreshToken.clear();
     m_userCallsign.clear();
     m_userFirstName.clear();
     m_userLastName.clear();
-    clearCredentials();
-    disconnect();
+    m_pingTimer.stop();
+    m_readBuffer.clear();
+    m_serverConnected = false;
+    m_socket.abort();
 }
 
 // ── Credential Persistence ──────────────────────────────────────────────────
@@ -378,6 +404,11 @@ void SmartLinkClient::onSslError(const QList<QSslError>& errors)
 
 void SmartLinkClient::onReadyRead()
 {
+    if (!m_authenticated) {  // signed out: nothing from the server counts
+        m_socket.readAll();
+        m_readBuffer.clear();
+        return;
+    }
     m_readBuffer.append(m_socket.readAll());
     if (m_readBuffer.size() > kMaxReadBuffer) {
         qCWarning(lcSmartLink) << "SmartLinkClient: read buffer exceeded"
