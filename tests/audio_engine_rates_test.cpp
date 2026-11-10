@@ -716,6 +716,61 @@ void queueBudgetsAndDeviceTransitions()
     }
 }
 
+// #6537: the jitter buffer withholds playout until its target is queued, then
+// spends that cushion across an arrival stall (unlike a Receive Sync delay,
+// which keeps its delay queued), and refills once the queue has run dry.
+void jitterBuffer()
+{
+    constexpr int rate = 24000;
+    const auto ms = [](qsizetype bytes) { return bytes * 1000 / (rate * kFrameBytes); };
+    Fixture fixture(rate);
+    PcmProducer producer;
+    producer.start(PcmPurpose::Speaker, -1, {rate, PcmLayout::Stereo});
+    quint64 offset = 0;
+    const auto feedMs = [&](int duration) {
+        const int frames = rate * duration / 1000;
+        feed(fixture.engine, producer, tone(rate, frames, offset));
+        offset += static_cast<quint64>(frames);
+    };
+
+    fixture.engine.setRxJitterBufferMs(200);
+    feedMs(100);
+    fixture.tick();
+    check(fixture.output.data().isEmpty(),
+          "jitter buffer withholds playout below its target");
+
+    feedMs(120);
+    fixture.tick();
+    check(!fixture.output.data().isEmpty(),
+          "jitter buffer releases playout once its target is queued");
+
+    // An arrival stall: no packets, ten 10 ms device ticks.
+    const qsizetype queuedBefore = AudioEngineRatesTestAccess::rawBytes(fixture.engine);
+    const qsizetype playedBefore = fixture.output.data().size();
+    for (int tick = 0; tick < 10; ++tick) {
+        fixture.tick();
+    }
+    check(std::abs(ms(fixture.output.data().size() - playedBefore) - 100) <= 2
+              && queuedBefore - AudioEngineRatesTestAccess::rawBytes(fixture.engine)
+                     >= rate / 10 * kFrameBytes - kFrameBytes,
+          "the cushion is spent across an arrival stall, not held back");
+
+    fixture.finish();
+    check(AudioEngineRatesTestAccess::rawBytes(fixture.engine) == 0,
+          "a long stall drains the whole cushion");
+    fixture.tick();  // starved: refill re-arms
+    const qsizetype playedStarved = fixture.output.data().size();
+    feedMs(50);
+    fixture.tick();
+    check(fixture.output.data().size() == playedStarved,
+          "after running dry the jitter buffer refills before playing on");
+
+    fixture.engine.setRxJitterBufferMs(0);
+    fixture.tick();
+    check(fixture.output.data().size() > playedStarved,
+          "disabling the jitter buffer plays queued audio at once");
+}
+
 enum class Effect { None, Eq, Nr2, Rn2, Nr4, Dfnr, Mnr };
 
 const char* effectName(Effect effect)
@@ -1105,7 +1160,7 @@ void printUsage(const char* program)
     std::fprintf(stderr,
         "usage: %s [--case=rateMatrix|bandwidthAndMono|negotiatedSpeakerOutput|"
         "negotiationOpenFailure|negotiationLifetimeAndCoalescing|auxiliaryAcrossNegotiation|"
-        "transitionsAndRejection|queueBudgetsAndDeviceTransitions|concurrentSourcesAndEffects|"
+        "transitionsAndRejection|queueBudgetsAndDeviceTransitions|jitterBuffer|concurrentSourcesAndEffects|"
         "effects-bypass|effects-EQ|effects-NR2|effects-RN2|effects-NR4|"
         "effects-DFNR|effects-MNR|kiwiDeviceRateMatrix|processingStateReset|"
         "legacyReplacementAndKiwiReset|fixedProcessingDomains]\n", program);
@@ -1131,6 +1186,7 @@ std::optional<AudioCase> parseCase(int argc, char** argv, bool& valid)
              AudioCase{"auxiliaryAcrossNegotiation", std::nullopt},
              AudioCase{"transitionsAndRejection", std::nullopt},
              AudioCase{"queueBudgetsAndDeviceTransitions", std::nullopt},
+             AudioCase{"jitterBuffer", std::nullopt},
              AudioCase{"concurrentSourcesAndEffects", std::nullopt},
              AudioCase{"effects-bypass", Effect::None},
              AudioCase{"effects-EQ", Effect::Eq},
@@ -1201,6 +1257,7 @@ int main(int argc, char** argv)
     if (selected("queueBudgetsAndDeviceTransitions")) {
         runStage("queueBudgetsAndDeviceTransitions", queueBudgetsAndDeviceTransitions);
     }
+    if (selected("jitterBuffer")) { runStage("jitterBuffer", jitterBuffer); }
     if (selected("concurrentSourcesAndEffects")
         || (selectedCase && selectedCase->effect)) {
         const std::optional<Effect> effect = selectedCase ? selectedCase->effect : std::nullopt;

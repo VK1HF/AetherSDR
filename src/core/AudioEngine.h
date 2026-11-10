@@ -226,6 +226,11 @@ public:
     int  rxPan() const { return m_rxPan.load(); }
     void  setRxBufferCapMs(int ms) { m_rxBufferCapMs.store(qBound(50, ms, 1000)); }
     int   rxBufferCapMs() const { return m_rxBufferCapMs.load(); }
+    // Flex RX jitter buffer (#6537): queue this much audio before playing,
+    // and again after the sink runs dry, so WAN arrival jitter is absorbed
+    // instead of heard. 0 disables.
+    void  setRxJitterBufferMs(int ms);
+    int   rxJitterBufferMs() const { return m_rxJitterBufferMs.load(); }
     void setReceivePresentationDelays(
         int flexDelayMs,
         int kiwiDelayMs,
@@ -1641,6 +1646,17 @@ private:
     // the start of the transmission.
     float             m_flexTxGateGain{1.0f};
     std::atomic<int>  m_flexReceivePresentationDelayMs{0};
+    std::atomic<int>  m_rxJitterBufferMs{0};  // #6537
+    std::atomic<bool> m_rxJitterPrefilling{false};
+    std::atomic<quint64> m_rxJitterRefillCount{0};
+    static constexpr int kRxJitterStarvedMs = 10;  // one drain tick
+    bool updateRxJitterPrefill(qsizetype freeBytes, int outputRate,
+                               bool nr2PacketMode);
+    // Flex queue depth to keep under the cap: Receive Sync delay or jitter buffer.
+    int flexPrebufferMs() const {
+        return std::max(m_flexReceivePresentationDelayMs.load(std::memory_order_relaxed),
+                        m_rxJitterBufferMs.load(std::memory_order_relaxed));
+    }
     std::atomic<int>  m_kiwiReceivePresentationDelayMs{0};
     QString           m_externalKiwiReceivePresentationDelaySourceId;
     int               m_externalKiwiReceivePresentationDelayMs{0};

@@ -955,6 +955,25 @@ Popup {
                     // "radio set binaural_rx" and "low_latency_digital_modes"
                     // (could not parse), so they are shown, not set.
                     Heading { text: qsTr("Receive audio") }
+                    // RX jitter buffer (#6537). Audio waits until this much
+                    // is queued, so a mobile-data or Starlink link's uneven
+                    // arrival is not heard as gaps; it adds the same delay.
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        Label { text: qsTr("RX jitter buffer"); color: Theme.text; font.pixelSize: Theme.px(15); Layout.fillWidth: true }
+                        Repeater {
+                            model: [0, 100, 200, 400]
+                            delegate: AppButton {
+                                required property int modelData
+                                objectName: "setupJitter" + modelData
+                                text: modelData === 0 ? qsTr("Off") : modelData + " ms"
+                                checked: Engine.rxJitterBufferMs === modelData
+                                Layout.preferredHeight: Theme.touchTarget
+                                onClicked: Engine.rxJitterBufferMs = modelData
+                            }
+                        }
+                    }
                     Info {
                         objectName: "setupBinaural"
                         label: qsTr("Binaural receive")

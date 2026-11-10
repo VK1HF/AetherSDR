@@ -1161,6 +1161,8 @@ MainWindow::MainWindow(QWidget* parent)
         AppSettings::instance().value("RxOutputTrimDb", "0.0").toFloat());
     m_audio->setRxBufferCapMs(
         AppSettings::instance().value("AudioBufferMs", "100").toInt());
+    m_audio->setRxJitterBufferMs(
+        AppSettings::instance().value("RxJitterBufferMs", "0").toInt());
     m_audio->moveToThread(m_audioThread);
     AetherSDR::startStreamThread(m_audioThread);   // High QoS; see AppActivity.h
     const auto updateAetherDspPolicy = [this](bool) {

@@ -673,6 +673,8 @@ class MobileEngine : public QObject {
     // When the next send is due (ms since the epoch, Date.now()), 0 while
     // the slot is being sent or nothing repeats.
     Q_PROPERTY(double macroRepeatDueAt READ macroRepeatDueAt NOTIFY macroRepeatChanged)
+    // Receive audio held before playing, to ride out network jitter (0 = off).
+    Q_PROPERTY(int rxJitterBufferMs READ rxJitterBufferMs WRITE setRxJitterBufferMs NOTIFY rxJitterBufferChanged)
     Q_PROPERTY(int procLevel READ procLevel WRITE setProcLevel NOTIFY txAudioChanged)
     Q_PROPERTY(int procLevelMax READ procLevelMax NOTIFY txAudioChanged)
     Q_PROPERTY(bool monitor READ monitor WRITE setMonitor NOTIFY txAudioChanged)
@@ -1538,6 +1540,8 @@ public:
     QString dvkState() const;
     bool dvkOnRadio() const;
     bool dvkRadioAvailable() const;
+    int rxJitterBufferMs() const;
+    void setRxJitterBufferMs(int ms);
     bool voiceKeyerLocal() const;
     void setVoiceKeyerLocal(bool local);
     // A SmartSDR+ feature the radio's license status allows (true until the
@@ -1812,6 +1816,7 @@ signals:
     void phoneChanged();
     void panDisplayChanged();
     void dvkChanged();
+    void rxJitterBufferChanged();
     void macroRepeatChanged();
     // The connected-stations list was asked for (Radio Setup); the operate
     // page opens it.

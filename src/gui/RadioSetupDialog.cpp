@@ -5710,6 +5710,39 @@ QWidget* RadioSetupDialog::buildAudioTab()
         pcLayout->addLayout(bufRow);
     }
 
+    // Jitter Buffer (ms): Flex RX playout target (#6537)
+    {
+        auto* jbRow = new QHBoxLayout;
+        auto* jbLabel = new QLabel("Jitter Buffer:");
+        applyLabelStyle(jbLabel);
+        jbLabel->setFixedWidth(90);
+        int jbMs = AppSettings::instance().value("RxJitterBufferMs", "0").toInt();
+        auto* jbEdit = new QLineEdit(QString::number(jbMs));
+        jbEdit->setFixedWidth(50);
+        auto* jbUnit = new QLabel("ms");
+        applyLabelStyle(jbUnit);
+        auto* jbHint = new QLabel("(0–1000, audio held before playing; try 150–300 on WAN)");
+        setTone(jbHint, Tone::Hint);
+        connect(jbEdit, &QLineEdit::editingFinished, this, [this, jbEdit] {
+            int val = qBound(0, jbEdit->text().toInt(), 1000);
+            jbEdit->setText(QString::number(val));
+            auto& s = AppSettings::instance();
+            s.setValue("RxJitterBufferMs", QString::number(val));
+            s.save();
+            if (m_audio) {
+                QMetaObject::invokeMethod(m_audio, [this, val]() {
+                    m_audio->setRxJitterBufferMs(val);
+                }, Qt::QueuedConnection);
+            }
+        });
+        jbRow->addWidget(jbLabel);
+        jbRow->addWidget(jbEdit);
+        jbRow->addWidget(jbUnit);
+        jbRow->addWidget(jbHint);
+        jbRow->addStretch(1);
+        pcLayout->addLayout(jbRow);
+    }
+
     vbox->addWidget(pcGroup);
 
     // ── Recording ───────────────────────────────────────────────────────

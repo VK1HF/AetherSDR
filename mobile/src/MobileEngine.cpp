@@ -521,6 +521,8 @@ MobileEngine::MobileEngine(QObject* parent)
     m_audio->moveToThread(m_audioThread);
     connect(m_audio, &AudioEngine::txClipRecorded, this, &MobileEngine::onVoiceClipRecorded);
     connect(m_audio, &AudioEngine::txClipFinished, this, &MobileEngine::onVoiceClipFinished);
+    // The RX jitter buffer (#6537), the same setting as the desktop's.
+    m_audio->setRxJitterBufferMs(rxJitterBufferMs());
     // The meter choices offer SNR while RADE runs: a choice of it comes
     // back with RADE (only the start and end, not every SNR report).
     connect(this, &MobileEngine::radeChanged, this, [this] {
@@ -3162,6 +3164,25 @@ bool MobileEngine::dvkOnRadio() const
 {
     // With SmartSDR+ the operator can still keep the voice keyer here.
     return dvkRadioAvailable() && !voiceKeyerLocal();
+}
+
+int MobileEngine::rxJitterBufferMs() const
+{
+    return std::clamp(AppSettings::instance().value(QStringLiteral("RxJitterBufferMs"), 0).toInt(), 0, 1000);
+}
+
+void MobileEngine::setRxJitterBufferMs(int ms)
+{
+    ms = std::clamp(ms, 0, 1000);
+    if (ms == rxJitterBufferMs()) {
+        return;
+    }
+    AppSettings::instance().setValue(QStringLiteral("RxJitterBufferMs"), ms);
+    AppSettings::instance().save();
+    AudioEngine* audio = m_audio;
+    QMetaObject::invokeMethod(audio, [audio, ms] { audio->setRxJitterBufferMs(ms); }, Qt::QueuedConnection);
+    qCInfo(lcMobile) << "RX jitter buffer" << ms << "ms";
+    emit rxJitterBufferChanged();
 }
 
 bool MobileEngine::voiceKeyerLocal() const
